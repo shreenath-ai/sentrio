@@ -6,7 +6,7 @@ The product is independent and is not affiliated with Tata Motors or any other e
 
 ## Current status
 
-The architecture is documented and the working product is available in [`app`](app). It includes first-run profile and shift setup, the responsive Today dashboard, Quick Mark Attendance, a monthly Diary calendar, an editable repeating shift-rotation planner, free `.ics` export for Google Calendar, all six attendance statuses, editable A/B/C/G timings, custom attendance cycles, and IndexedDB persistence.
+The architecture is documented and the working product is available in [`app`](app). It includes first-run profile and shift setup, the responsive Today dashboard, Quick Mark Attendance, a monthly Diary calendar, an editable repeating shift-rotation planner, all six attendance statuses, editable A/B/C/G timings, custom attendance cycles, and IndexedDB persistence.
 
 The agreed foundation is:
 

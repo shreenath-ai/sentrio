@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Download,
   PencilLine,
   Repeat2,
 } from 'lucide-react';
@@ -28,7 +27,6 @@ type DiaryProps = {
   shifts: ShiftConfig[];
   rotationPlan: RotationPlan;
   onEditDate: (dateKey: string) => void;
-  onOpenExport: () => void;
   onOpenPlanner: () => void;
 };
 
@@ -54,7 +52,6 @@ export function Diary({
   shifts,
   rotationPlan,
   onEditDate,
-  onOpenExport,
   onOpenPlanner,
 }: DiaryProps) {
   const [month, setMonth] = useState(
@@ -109,14 +106,9 @@ export function Diary({
           <h1>Attendance calendar</h1>
           <p>Actual attendance and planned shifts, together.</p>
         </div>
-        <div className="diary-actions">
-          <button className="planner-button" type="button" onClick={onOpenExport}>
-            <Download size={18} /> Export
-          </button>
-          <button className="planner-button" type="button" onClick={onOpenPlanner}>
-            <Repeat2 size={18} /> Rotation
-          </button>
-        </div>
+        <button className="planner-button" type="button" onClick={onOpenPlanner}>
+          <Repeat2 size={18} /> Rotation
+        </button>
       </section>
 
       <section className="month-card" aria-label="Monthly attendance calendar">

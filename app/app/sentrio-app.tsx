@@ -33,7 +33,6 @@ import {
   type ShiftCode,
 } from './lib/domain';
 import { Diary } from './diary';
-import { CalendarExport } from './calendar-export';
 import { Onboarding } from './onboarding';
 import { RotationPlanner } from './rotation-planner';
 
@@ -58,7 +57,6 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [now] = useState(() => new Date(initialNow));
   const [isOnline, setIsOnline] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isRotationOpen, setIsRotationOpen] = useState(false);
   const [activeView, setActiveView] = useState<'today' | 'diary'>('today');
   const [setupMode, setSetupMode] = useState<'settings' | null>(null);
@@ -106,17 +104,16 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isSheetOpen && !isRotationOpen && !isExportOpen) return;
+    if (!isSheetOpen && !isRotationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSheetOpen(false);
-        setIsExportOpen(false);
         setIsRotationOpen(false);
       }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isExportOpen, isRotationOpen, isSheetOpen]);
+  }, [isRotationOpen, isSheetOpen]);
 
   const todayKey = localDateKey(now);
   const records = useMemo(
@@ -400,7 +397,6 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               shifts={shiftConfigs}
               rotationPlan={rotationPlan}
               onEditDate={(dateKey) => openAttendanceSheet(settings.defaultStatus, dateKey)}
-              onOpenExport={() => setIsExportOpen(true)}
               onOpenPlanner={() => setIsRotationOpen(true)}
             />
           )}
@@ -519,16 +515,6 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
           plan={rotationPlan}
           shifts={shiftConfigs}
           onClose={() => setIsRotationOpen(false)}
-        />
-      ) : null}
-
-      {isExportOpen ? (
-        <CalendarExport
-          initialNow={now}
-          rotationPlan={rotationPlan}
-          shifts={shiftConfigs}
-          weeklyOff={settings.weeklyOff}
-          onClose={() => setIsExportOpen(false)}
         />
       ) : null}
 
