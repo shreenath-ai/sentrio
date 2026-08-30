@@ -5,7 +5,9 @@ import {
   DEFAULT_SHIFTS,
   type ShiftCode,
   type ShiftConfig,
+  type RotationPlan,
   type WorkProfile,
+  localDateKey,
 } from './domain';
 
 type MetaRecord = {
@@ -29,6 +31,7 @@ class SentrioDatabase extends Dexie {
   shiftConfigs!: EntityTable<ShiftConfig, 'code'>;
   settings!: EntityTable<AppSettings, 'id'>;
   attendanceRecords!: EntityTable<AttendanceRecord, 'id'>;
+  rotationPlans!: EntityTable<RotationPlan, 'id'>;
   meta!: EntityTable<MetaRecord, 'key'>;
 
   constructor() {
@@ -38,6 +41,14 @@ class SentrioDatabase extends Dexie {
       shiftConfigs: 'code, enabled',
       settings: 'id',
       attendanceRecords: 'id, date, status, shiftCode, updatedAt',
+      meta: 'key',
+    });
+    this.version(2).stores({
+      profiles: 'id, onboardingComplete, language',
+      shiftConfigs: 'code, enabled',
+      settings: 'id',
+      attendanceRecords: 'id, date, status, shiftCode, updatedAt',
+      rotationPlans: 'id, enabled, startDate',
       meta: 'key',
     });
   }
@@ -59,6 +70,7 @@ export async function initializeDatabase() {
       db.shiftConfigs,
       db.settings,
       db.attendanceRecords,
+      db.rotationPlans,
       db.meta,
     ],
     async () => {
@@ -87,6 +99,17 @@ export async function initializeDatabase() {
           cycleStartDay: 26,
           defaultShift: 'A',
           defaultStatus: 'PRESENT',
+          updatedAt: timestamp,
+        });
+      }
+
+      if (!(await db.rotationPlans.get('rotation'))) {
+        await db.rotationPlans.add({
+          id: 'rotation',
+          enabled: true,
+          startDate: localDateKey(new Date()),
+          rotationUnit: 'WEEKLY',
+          sequence: ['A', 'B', 'C'],
           updatedAt: timestamp,
         });
       }

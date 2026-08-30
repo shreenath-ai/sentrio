@@ -27,16 +27,14 @@ import {
   type AttendanceStatus,
   DEFAULT_SHIFTS,
   formatShiftTime,
+  localDateKey,
+  parseDateKey,
+  plannedShiftForDate,
   type ShiftCode,
 } from './lib/domain';
+import { Diary } from './diary';
 import { Onboarding } from './onboarding';
-
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+import { RotationPlanner } from './rotation-planner';
 
 function formatCycle(date: Date, cycleStartDay: number) {
   const start =
@@ -59,6 +57,8 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [now] = useState(() => new Date(initialNow));
   const [isOnline, setIsOnline] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isRotationOpen, setIsRotationOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'today' | 'diary'>('today');
   const [setupMode, setSetupMode] = useState<'settings' | null>(null);
   const [initializationError, setInitializationError] = useState('');
   const [activeStatus, setActiveStatus] =
@@ -67,6 +67,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [checkIn, setCheckIn] = useState('06:28');
   const [checkOut, setCheckOut] = useState('');
   const [note, setNote] = useState('');
+  const [entryDate, setEntryDate] = useState(() => localDateKey(new Date(initialNow)));
   const [toast, setToast] = useState('');
 
   const profile = useLiveQuery(() => db.profiles.get('default'), []);
@@ -79,6 +80,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     () => db.attendanceRecords.toArray(),
     [],
   );
+  const rotationPlan = useLiveQuery(() => db.rotationPlans.get('rotation'), []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -102,13 +104,16 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isSheetOpen) return;
+    if (!isSheetOpen && !isRotationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsSheetOpen(false);
+      if (event.key === 'Escape') {
+        setIsSheetOpen(false);
+        setIsRotationOpen(false);
+      }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isSheetOpen]);
+  }, [isRotationOpen, isSheetOpen]);
 
   const todayKey = localDateKey(now);
   const records = useMemo(
@@ -158,7 +163,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     );
   }
 
-  if (!profile || !settings || !shiftConfigs || attendanceRecords === undefined) {
+  if (!profile || !settings || !shiftConfigs || !rotationPlan || attendanceRecords === undefined) {
     return (
       <main className="database-state" aria-busy="true">
         <Brand compact />
@@ -184,11 +189,22 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const todayShiftCode = todayRecord?.shiftCode ?? settings.defaultShift;
   const todayShift = shiftMap.get(todayShiftCode) ?? DEFAULT_SHIFTS[0];
 
-  function openAttendanceSheet(status: AttendanceStatus = 'PRESENT') {
-    const existing = records[todayKey];
+  function openAttendanceSheet(
+    status: AttendanceStatus = 'PRESENT',
+    dateKey: string = todayKey,
+  ) {
+    const existing = records[dateKey];
+    const plannedShift = plannedShiftForDate(
+      dateKey,
+      rotationPlan,
+      settings.weeklyOff,
+    );
+    const suggestedShift = plannedShift ?? settings.defaultShift;
+    const selectedShift = shiftMap.get(existing?.shiftCode ?? suggestedShift);
+    setEntryDate(dateKey);
     setActiveStatus(existing?.status ?? status);
-    setActiveShift(existing?.shiftCode ?? settings.defaultShift);
-    setCheckIn(existing?.checkIn ?? '06:28');
+    setActiveShift(existing?.shiftCode ?? suggestedShift);
+    setCheckIn(existing?.checkIn ?? selectedShift?.startTime ?? '');
     setCheckOut(existing?.checkOut ?? '');
     setNote(existing?.note ?? '');
     setIsSheetOpen(true);
@@ -197,10 +213,11 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   async function saveAttendance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const selectedShift = shiftMap.get(activeShift) ?? DEFAULT_SHIFTS[0];
+    const existingRecord = records[entryDate];
     const timestamp = new Date().toISOString();
     const nextRecord: AttendanceRecord = {
-      id: todayKey,
-      date: todayKey,
+      id: entryDate,
+      date: entryDate,
       shiftCode: activeShift,
       shiftName: selectedShift.name,
       shiftStartTime: selectedShift.startTime,
@@ -209,12 +226,12 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
       checkIn,
       checkOut,
       note: note.trim(),
-      createdAt: todayRecord?.createdAt ?? timestamp,
+      createdAt: existingRecord?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
     await db.attendanceRecords.put(nextRecord);
     setIsSheetOpen(false);
-    setToast('Attendance saved to the offline database');
+    setToast('Attendance saved to your diary');
     window.setTimeout(() => setToast(''), 2600);
   }
 
@@ -271,13 +288,15 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
         </header>
 
         <div className="page-scroll">
+          {activeView === 'today' ? (
+            <>
           <section className="date-heading">
             <div>
               <span className="eyebrow">Today</span>
               <h1>{englishDate}</h1>
               <p lang="mr">{marathiDate}</p>
             </div>
-            <button className="calendar-button" type="button" aria-label="Open diary calendar">
+            <button className="calendar-button" type="button" aria-label="Open diary calendar" onClick={() => setActiveView('diary')}>
               <CalendarDays size={20} />
             </button>
           </section>
@@ -369,13 +388,25 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               <blockquote lang="mr">“प्रयत्नांती परमेश्वर.”</blockquote>
             </div>
           </section>
+            </>
+          ) : (
+            <Diary
+              initialNow={now}
+              records={attendanceRecords}
+              settings={settings}
+              shifts={shiftConfigs}
+              rotationPlan={rotationPlan}
+              onEditDate={(dateKey) => openAttendanceSheet(settings.defaultStatus, dateKey)}
+              onOpenPlanner={() => setIsRotationOpen(true)}
+            />
+          )}
         </div>
 
         <nav className="bottom-nav" aria-label="Primary navigation">
-          <button className="nav-item active" type="button" aria-current="page">
+          <button className={`nav-item ${activeView === 'today' ? 'active' : ''}`} type="button" aria-current={activeView === 'today' ? 'page' : undefined} onClick={() => setActiveView('today')}>
             <Home size={21} /><span>Today</span>
           </button>
-          <button className="nav-item" type="button" title="Coming next" disabled aria-disabled="true">
+          <button className={`nav-item ${activeView === 'diary' ? 'active' : ''}`} type="button" aria-current={activeView === 'diary' ? 'page' : undefined} onClick={() => setActiveView('diary')}>
             <NotebookTabs size={21} /><span>Diary</span>
           </button>
           <button className="nav-item" type="button" title="Coming next" disabled aria-disabled="true">
@@ -419,7 +450,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               <div>
                 <span className="eyebrow">Quick entry</span>
                 <h2 id="attendance-sheet-title">Mark attendance</h2>
-                <p>{englishDate}</p>
+                <p>{parseDateKey(entryDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
               </div>
               <button className="icon-button" type="button" onClick={() => setIsSheetOpen(false)} aria-label="Close attendance form">
                 <X size={20} />
@@ -478,6 +509,14 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
           </section>
         </div>
       )}
+
+      {isRotationOpen ? (
+        <RotationPlanner
+          plan={rotationPlan}
+          shifts={shiftConfigs}
+          onClose={() => setIsRotationOpen(false)}
+        />
+      ) : null}
 
       {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
     </div>

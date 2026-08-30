@@ -10,6 +10,8 @@ export type AttendanceStatus =
 
 export type LanguageCode = 'en' | 'mr';
 
+export type RotationUnit = 'DAILY' | 'WEEKLY';
+
 export type WorkProfile = {
   id: 'default';
   name: string;
@@ -50,6 +52,15 @@ export type AttendanceRecord = {
   checkOut: string;
   note: string;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type RotationPlan = {
+  id: 'rotation';
+  enabled: boolean;
+  startDate: string;
+  rotationUnit: RotationUnit;
+  sequence: ShiftCode[];
   updatedAt: string;
 };
 
@@ -113,4 +124,37 @@ export const WEEKDAYS = [
 
 export function formatShiftTime(shift: ShiftConfig) {
   return `${shift.startTime}–${shift.endTime}`;
+}
+
+export function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function parseDateKey(value: string) {
+  return new Date(`${value}T12:00:00`);
+}
+
+export function plannedShiftForDate(
+  dateKey: string,
+  plan: RotationPlan,
+  weeklyOff: number,
+) {
+  const date = parseDateKey(dateKey);
+  if (!plan.enabled || date.getDay() === weeklyOff || plan.sequence.length === 0) {
+    return null;
+  }
+
+  const anchor = parseDateKey(plan.startDate);
+  const dayDifference = Math.floor(
+    (date.getTime() - anchor.getTime()) / 86_400_000,
+  );
+  const position =
+    plan.rotationUnit === 'WEEKLY'
+      ? Math.floor(dayDifference / 7)
+      : dayDifference;
+  const index = ((position % plan.sequence.length) + plan.sequence.length) % plan.sequence.length;
+  return plan.sequence[index];
 }
