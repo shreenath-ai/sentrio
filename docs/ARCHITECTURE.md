@@ -30,7 +30,7 @@ flowchart LR
     Domain --> Almanac[Bundled almanac dataset]
     Domain --> Queue[Optional sync queue]
     Queue --> Google[Google Calendar]
-    Export --> Files[JSON / CSV / ICS / Print]
+    Export --> Files[JSON / CSV / Print]
 ```
 
 There is no server dependency in MVP. Sentrio remains useful when Google Calendar is disconnected or unavailable.
@@ -129,7 +129,6 @@ src/
   adapters/
     backup/
     csv/
-    ical/
     print/
     share/
     almanac/
@@ -240,7 +239,7 @@ Restore flow:
 6. Apply the restore in a transaction.
 7. Run integrity checks and report the result.
 
-Exports are generated locally. CSV is the interoperable spreadsheet format for MVP. Printing uses a dedicated report view and `@media print`. iCalendar entries describe planned shifts and never include private diary notes.
+Exports are generated locally. CSV is the interoperable spreadsheet format for MVP. Printing uses a dedicated report view and `@media print`.
 
 ## 10. PWA and offline behavior
 
@@ -356,7 +355,7 @@ Test onboarding through first shift, offline reload, overnight-shift correction,
 ### Vertical slice 3: portability and integration
 
 - Backup/restore
-- CSV, print/PDF, iCalendar, and share text
+- CSV, print/PDF, and share text
 - Optional one-way Google Calendar sync
 
 ### Cultural and polish layer
@@ -376,4 +375,3 @@ Approve executable examples for:
 4. Cross-midnight edits and missing punches.
 5. Attendance-cycle behavior when a cutoff is invalid for a month.
 6. Which statuses count toward an optional attendance percentage.
-

@@ -154,7 +154,6 @@ Deliverables:
 - Calendar-month and custom-cycle attendance reports
 - CSV export with spreadsheet-injection protection
 - Printable report and Save as PDF flow
-- iCalendar export
 - WhatsApp-friendly share text
 - Full JSON backup with checksum
 - Restore preview, merge/replace choice, transaction, and integrity check
@@ -257,4 +256,3 @@ A feature is complete only when:
 - Accessibility labels and focus behavior are checked.
 - No sensitive data is added to logs, notifications, Calendar, or exports unexpectedly.
 - Documentation and release notes are updated.
-

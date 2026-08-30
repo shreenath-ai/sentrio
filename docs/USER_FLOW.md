@@ -86,9 +86,7 @@ Use four bottom-navigation destinations and one secondary menu:
 ```mermaid
 flowchart TD
     Settings[Settings] --> Calendar[Calendar integration]
-    Calendar --> Choice{Choose method}
-    Choice -- No Google login --> ICS[Export .ics file]
-    Choice -- Connect Google --> Consent[Explain exactly what is shared]
+    Calendar --> Consent[Explain exactly what is shared]
     Consent --> Approve{User approves?}
     Approve -- No --> Local[Continue local-only]
     Approve -- Yes --> Dedicated[Create Sentrio Shifts calendar]
@@ -125,4 +123,3 @@ Google Calendar is a display/reminder destination in the first release. Users ed
 - Google Calendar: skipped initially and available later in Settings.
 - Attendance method: Quick Mark, with Clock Mode available.
 - Reports and advanced insights stay unobtrusive until attendance exists.
-
