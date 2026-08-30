@@ -6,9 +6,11 @@ The product is independent and is not affiliated with Tata Motors or any other e
 
 ## Current status
 
-The repository is in the architecture phase. The agreed foundation is:
+The architecture is documented and the first working product slice is available in [`app`](app). It includes first-run profile and shift setup, the responsive Today dashboard, Quick Mark Attendance, all six attendance statuses, editable A/B/C/G timings, custom attendance cycles, and IndexedDB persistence.
 
-- React and TypeScript with Vite
+The agreed foundation is:
+
+- React and TypeScript using Vinext and Vite
 - Tailwind CSS and Lucide icons
 - Installable offline PWA
 - IndexedDB-backed local-first data
@@ -22,6 +24,14 @@ The repository is in the architecture phase. The agreed foundation is:
 - [Domain model and calculation rules](docs/DOMAIN_MODEL.md)
 - [Simple application flow](docs/USER_FLOW.md)
 - [Development plan](docs/DEVELOPMENT_PLAN.md)
+
+## Run locally
+
+```bash
+cd app
+npm install
+npm run dev
+```
 
 ## Product principles
 
