@@ -23,6 +23,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { db, initializeDatabase } from './lib/db';
 import {
   ATTENDANCE_STATUSES,
+  attendanceCycleFor,
   type AttendanceRecord,
   type AttendanceStatus,
   DEFAULT_SHIFTS,
@@ -32,33 +33,19 @@ import {
   plannedShiftForDate,
   type ShiftCode,
 } from './lib/domain';
+import { copyFor, statusLabel } from './lib/i18n';
 import { Diary } from './diary';
+import { Insights } from './insights';
 import { Onboarding } from './onboarding';
+import { Reports } from './reports';
 import { RotationPlanner } from './rotation-planner';
-
-function formatCycle(date: Date, cycleStartDay: number) {
-  const start =
-    date.getDate() >= cycleStartDay
-      ? new Date(date.getFullYear(), date.getMonth(), cycleStartDay)
-      : new Date(date.getFullYear(), date.getMonth() - 1, cycleStartDay);
-  const end = new Date(
-    start.getFullYear(),
-    start.getMonth() + 1,
-    cycleStartDay - 1,
-  );
-  const short = (value: Date) =>
-    value.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  const totalDays =
-    Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
-  return { start, end, totalDays, label: `${short(start)} – ${short(end)}` };
-}
 
 export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [now] = useState(() => new Date(initialNow));
   const [isOnline, setIsOnline] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isRotationOpen, setIsRotationOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'today' | 'diary'>('today');
+  const [activeView, setActiveView] = useState<'today' | 'diary' | 'insights' | 'reports'>('today');
   const [setupMode, setSetupMode] = useState<'settings' | null>(null);
   const [initializationError, setInitializationError] = useState('');
   const [activeStatus, setActiveStatus] =
@@ -126,14 +113,12 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const todayRecord = records[todayKey];
   const cycleStartDay = settings?.cycleStartDay ?? 26;
   const cycle = useMemo(
-    () => formatCycle(now, cycleStartDay),
+    () => attendanceCycleFor(now, cycleStartDay),
     [cycleStartDay, now],
   );
   const markedInCycle = useMemo(() => {
-    const start = localDateKey(cycle.start);
-    const end = localDateKey(cycle.end);
     return (attendanceRecords ?? []).filter(
-      (record) => record.date >= start && record.date <= end,
+      (record) => record.date >= cycle.startKey && record.date <= cycle.endKey,
     ).length;
   }, [attendanceRecords, cycle]);
 
@@ -186,6 +171,8 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   }
 
   const shiftMap = new Map(shiftConfigs.map((shift) => [shift.code, shift]));
+  const copy = copyFor(profile.language);
+  const locale = profile.language === 'mr' ? 'mr-IN' : 'en-IN';
   const todayShiftCode = todayRecord?.shiftCode ?? settings.defaultShift;
   const todayShift = shiftMap.get(todayShiftCode) ?? DEFAULT_SHIFTS[0];
 
@@ -231,13 +218,41 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     };
     await db.attendanceRecords.put(nextRecord);
     setIsSheetOpen(false);
-    setToast('Attendance saved to your diary');
+    setToast(copy.attendanceSaved);
     window.setTimeout(() => setToast(''), 2600);
   }
 
-  const savedStatus = ATTENDANCE_STATUSES.find(
-    (status) => status.value === todayRecord?.status,
-  );
+  async function startShift() {
+    const selectedShift = shiftMap.get(todayShiftCode) ?? DEFAULT_SHIFTS[0];
+    const timestamp = new Date();
+    const currentTime = timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    await db.attendanceRecords.put({
+      id: todayKey,
+      date: todayKey,
+      shiftCode: selectedShift.code,
+      shiftName: selectedShift.name,
+      shiftStartTime: selectedShift.startTime,
+      shiftEndTime: selectedShift.endTime,
+      status: 'PRESENT',
+      checkIn: todayRecord?.checkIn || currentTime,
+      checkOut: todayRecord?.checkOut || '',
+      note: todayRecord?.note || '',
+      createdAt: todayRecord?.createdAt || timestamp.toISOString(),
+      updatedAt: timestamp.toISOString(),
+    });
+    setToast(copy.shiftStarted);
+    window.setTimeout(() => setToast(''), 2600);
+  }
+
+  async function endShift() {
+    if (!todayRecord?.checkIn) return;
+    const timestamp = new Date();
+    const currentTime = timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    await db.attendanceRecords.update(todayRecord.id, { checkOut: currentTime, updatedAt: timestamp.toISOString() });
+    setToast(copy.shiftEnded);
+    window.setTimeout(() => setToast(''), 2600);
+  }
+
   const initials = profile.name
     .split(/\s+/)
     .slice(0, 2)
@@ -250,13 +265,13 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
       <aside className="desktop-rail" aria-label="Sentrio overview">
         <Brand />
         <div className="rail-copy">
-          <span className="eyebrow light">Self-attendance diary</span>
-          <h2>Your shift.<br />Your record.</h2>
-          <p>Private, practical and always available on your device.</p>
+          <span className="eyebrow light">{copy.selfAttendanceDiary}</span>
+          <h2>{copy.yourShiftRecord.split('\n').map((line) => <span key={line}>{line}<br /></span>)}</h2>
+          <p>{copy.privatePractical}</p>
         </div>
         <div className="rail-status">
           <ShieldCheck size={18} aria-hidden="true" />
-          <span>Personal data stays on this device</span>
+          <span>{copy.staysOnDevice}</span>
         </div>
       </aside>
 
@@ -266,12 +281,12 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
           <div className="header-actions">
             <span className={`connection-pill ${isOnline ? '' : 'offline'}`}>
               <CloudOff size={14} aria-hidden="true" />
-              {isOnline ? 'Offline ready' : 'You are offline'}
+              {isOnline ? copy.offlineReady : copy.youAreOffline}
             </span>
             <button
               className="icon-button"
               type="button"
-              aria-label="Open settings"
+              aria-label={copy.settings}
               onClick={() => setSetupMode('settings')}
             >
               <Settings size={20} />
@@ -292,7 +307,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             <>
           <section className="date-heading">
             <div>
-              <span className="eyebrow">Today</span>
+              <span className="eyebrow">{copy.today}</span>
               <h1>{englishDate}</h1>
               <p lang="mr">{marathiDate}</p>
             </div>
@@ -305,11 +320,11 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             <div className="shift-card-top">
               <div className="shift-badge">{todayShift.code}</div>
               <div>
-                <span className="eyebrow light">Today&apos;s shift</span>
+                <span className="eyebrow light">{copy.todaysShift}</span>
                 <h2 id="shift-title">{todayShift.name} Shift</h2>
                 <p><Clock3 size={16} /> {formatShiftTime(todayShift)}</p>
               </div>
-              <span className="shift-state">Scheduled</span>
+              <span className="shift-state">{copy.scheduled}</span>
             </div>
 
             {todayRecord ? (
@@ -317,7 +332,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
                 <div>
                   <span className="saved-check"><Check size={15} /></span>
                   <div>
-                    <strong>{savedStatus?.label}</strong>
+                    <strong>{statusLabel(profile.language, todayRecord.status)}</strong>
                     <span>
                       Shift {todayRecord.shiftCode}
                       {todayRecord.checkIn ? ` · ${todayRecord.checkIn}` : ''}
@@ -325,26 +340,37 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
                   </div>
                 </div>
                 <button type="button" onClick={() => openAttendanceSheet()}>
-                  Edit <ChevronRight size={16} />
+                  {copy.edit} <ChevronRight size={16} />
                 </button>
               </div>
             ) : (
-              <p className="shift-helper">No attendance has been marked for today.</p>
+              <p className="shift-helper">{copy.noAttendance}</p>
             )}
+
+            <div className="clock-panel">
+              <div><strong>{copy.clockMode}</strong><span>{copy.clockHelper}</span></div>
+              {!todayRecord?.checkIn ? (
+                <button type="button" onClick={() => void startShift()}><Clock3 size={18} />{copy.startShift}</button>
+              ) : !todayRecord.checkOut ? (
+                <button className="end" type="button" onClick={() => void endShift()}><Clock3 size={18} />{copy.endShift}</button>
+              ) : (
+                <span className="clock-complete"><Check size={16} />{todayRecord.checkIn} – {todayRecord.checkOut}</span>
+              )}
+            </div>
 
             <button className="primary-action" type="button" onClick={() => openAttendanceSheet()}>
               <span className="action-icon"><Check size={20} /></span>
-              {todayRecord ? 'Update attendance' : 'Mark attendance'}
+              {todayRecord ? copy.updateAttendance : copy.markAttendance}
             </button>
           </section>
 
           <section className="status-section" aria-labelledby="quick-status-title">
             <div className="section-heading">
               <div>
-                <span className="eyebrow">One-tap entry</span>
-                <h2 id="quick-status-title">Quick status</h2>
+                <span className="eyebrow">{copy.oneTapEntry}</span>
+                <h2 id="quick-status-title">{copy.quickStatus}</h2>
               </div>
-              <span>6 options</span>
+              <span>{copy.sixOptions}</span>
             </div>
             <div className="status-grid">
               {ATTENDANCE_STATUSES.map((status) => (
@@ -357,7 +383,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
                   onClick={() => openAttendanceSheet(status.value)}
                 >
                   <span>{status.short}</span>
-                  {status.label}
+                  {statusLabel(profile.language, status.value)}
                   {todayRecord?.status === status.value && <Check size={15} />}
                 </button>
               ))}
@@ -369,7 +395,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             <div className="cycle-content">
               <div className="cycle-row">
                 <div>
-                  <span className="eyebrow">Attendance cycle</span>
+                  <span className="eyebrow">{copy.attendanceCycle}</span>
                   <h2 id="cycle-title">{cycle.label}</h2>
                 </div>
                 <strong>{markedInCycle}/{cycle.totalDays}</strong>
@@ -377,19 +403,19 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               <div className="progress-track" aria-label={`${markedInCycle} days marked in this cycle`}>
                 <span style={{ width: `${Math.min((markedInCycle / cycle.totalDays) * 100, 100)}%` }} />
               </div>
-              <p>{markedInCycle === 0 ? 'Start by marking today.' : `${markedInCycle} day${markedInCycle === 1 ? '' : 's'} safely recorded.`}</p>
+              <p>{markedInCycle === 0 ? copy.startByMarking : `${markedInCycle} ${copy.safelyRecorded}.`}</p>
             </div>
           </section>
 
           <section className="diary-note">
             <Sparkles size={19} aria-hidden="true" />
             <div>
-              <span lang="mr">आजचा सुविचार</span>
-              <blockquote lang="mr">“प्रयत्नांती परमेश्वर.”</blockquote>
+              <span>{copy.todaysThought}</span>
+              <blockquote>“{copy.thought}”</blockquote>
             </div>
           </section>
             </>
-          ) : (
+          ) : activeView === 'diary' ? (
             <Diary
               initialNow={now}
               records={attendanceRecords}
@@ -398,41 +424,46 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               rotationPlan={rotationPlan}
               onEditDate={(dateKey) => openAttendanceSheet(settings.defaultStatus, dateKey)}
               onOpenPlanner={() => setIsRotationOpen(true)}
+              language={profile.language}
             />
+          ) : activeView === 'insights' ? (
+            <Insights initialNow={now} records={attendanceRecords} cycleStartDay={cycleStartDay} language={profile.language} />
+          ) : (
+            <Reports initialNow={now} records={attendanceRecords} cycleStartDay={cycleStartDay} language={profile.language} />
           )}
         </div>
 
         <nav className="bottom-nav" aria-label="Primary navigation">
           <button className={`nav-item ${activeView === 'today' ? 'active' : ''}`} type="button" aria-current={activeView === 'today' ? 'page' : undefined} onClick={() => setActiveView('today')}>
-            <Home size={21} /><span>Today</span>
+            <Home size={21} /><span>{copy.today}</span>
           </button>
           <button className={`nav-item ${activeView === 'diary' ? 'active' : ''}`} type="button" aria-current={activeView === 'diary' ? 'page' : undefined} onClick={() => setActiveView('diary')}>
-            <NotebookTabs size={21} /><span>Diary</span>
+            <NotebookTabs size={21} /><span>{copy.diary}</span>
           </button>
-          <button className="nav-item" type="button" title="Coming next" disabled aria-disabled="true">
-            <BarChart3 size={21} /><span>Insights</span>
+          <button className={`nav-item ${activeView === 'insights' ? 'active' : ''}`} type="button" aria-current={activeView === 'insights' ? 'page' : undefined} onClick={() => setActiveView('insights')}>
+            <BarChart3 size={21} /><span>{copy.insights}</span>
           </button>
-          <button className="nav-item" type="button" title="Coming next" disabled aria-disabled="true">
-            <FileText size={21} /><span>Reports</span>
+          <button className={`nav-item ${activeView === 'reports' ? 'active' : ''}`} type="button" aria-current={activeView === 'reports' ? 'page' : undefined} onClick={() => setActiveView('reports')}>
+            <FileText size={21} /><span>{copy.reports}</span>
           </button>
         </nav>
       </main>
 
       <aside className="desktop-summary" aria-label="Cycle summary">
-        <span className="eyebrow">Current cycle</span>
+        <span className="eyebrow">{copy.currentCycle}</span>
         <h2>{cycle.label}</h2>
         <div className="summary-number">
           <strong>{markedInCycle}</strong>
-          <span>days marked</span>
+          <span>{copy.daysMarked}</span>
         </div>
         <div className="summary-list">
-          <div><span className="summary-dot present" />Present <strong>{todayRecord?.status === 'PRESENT' ? 1 : 0}</strong></div>
-          <div><span className="summary-dot off" />Weekly off <strong>{todayRecord?.status === 'WEEKLY_OFF' ? 1 : 0}</strong></div>
-          <div><span className="summary-dot absent" />Absent <strong>{todayRecord?.status === 'ABSENT' ? 1 : 0}</strong></div>
+          <div><span className="summary-dot present" />{copy.present} <strong>{todayRecord?.status === 'PRESENT' ? 1 : 0}</strong></div>
+          <div><span className="summary-dot off" />{copy.weeklyOff} <strong>{todayRecord?.status === 'WEEKLY_OFF' ? 1 : 0}</strong></div>
+          <div><span className="summary-dot absent" />{copy.absent} <strong>{todayRecord?.status === 'ABSENT' ? 1 : 0}</strong></div>
         </div>
         <div className="privacy-card">
           <UserRound size={19} />
-          <div><strong>Your diary</strong><span>No manager or payroll access.</span></div>
+          <div><strong>{copy.yourDiary}</strong><span>{copy.noPayroll}</span></div>
         </div>
       </aside>
 
@@ -448,9 +479,9 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             <div className="sheet-handle" />
             <header className="sheet-header">
               <div>
-                <span className="eyebrow">Quick entry</span>
-                <h2 id="attendance-sheet-title">Mark attendance</h2>
-                <p>{parseDateKey(entryDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                <span className="eyebrow">{copy.quickEntry}</span>
+                <h2 id="attendance-sheet-title">{copy.markAttendance}</h2>
+                <p>{parseDateKey(entryDate).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
               </div>
               <button className="icon-button" type="button" onClick={() => setIsSheetOpen(false)} aria-label="Close attendance form">
                 <X size={20} />
@@ -459,7 +490,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
 
             <form onSubmit={saveAttendance}>
               <fieldset>
-                <legend>Status</legend>
+                <legend>{copy.status}</legend>
                 <div className="sheet-status-grid">
                   {ATTENDANCE_STATUSES.map((status) => (
                     <button
@@ -469,14 +500,14 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
                       aria-pressed={activeStatus === status.value}
                       onClick={() => setActiveStatus(status.value)}
                     >
-                      <span>{status.short}</span>{status.label}
+                      <span>{status.short}</span>{statusLabel(profile.language, status.value)}
                     </button>
                   ))}
                 </div>
               </fieldset>
 
               <fieldset>
-                <legend>Shift</legend>
+                <legend>{copy.shift}</legend>
                 <div className="shift-selector">
                   {shiftConfigs.filter((shift) => shift.enabled).map((shift) => (
                     <button
@@ -493,17 +524,17 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               </fieldset>
 
               <div className="time-grid">
-                <label>Check-in <span>Optional</span><input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label>
-                <label>Check-out <span>Optional</span><input type="time" value={checkOut} onChange={(event) => setCheckOut(event.target.value)} /></label>
+                <label>{copy.checkIn} <span>{copy.optional}</span><input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label>
+                <label>{copy.checkOut} <span>{copy.optional}</span><input type="time" value={checkOut} onChange={(event) => setCheckOut(event.target.value)} /></label>
               </div>
 
-              <label className="note-field">Personal note <span>Optional</span>
-                <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a note about your shift…" rows={2} />
+              <label className="note-field">{copy.personalNote} <span>{copy.optional}</span>
+                <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={copy.notePlaceholder} rows={2} />
               </label>
 
               <div className="sheet-actions">
-                <button className="secondary-action" type="button" onClick={() => setIsSheetOpen(false)}>Cancel</button>
-                <button className="save-action" type="submit"><Save size={18} />Save attendance</button>
+                <button className="secondary-action" type="button" onClick={() => setIsSheetOpen(false)}>{copy.cancel}</button>
+                <button className="save-action" type="submit"><Save size={18} />{copy.saveAttendance}</button>
               </div>
             </form>
           </section>

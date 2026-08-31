@@ -13,12 +13,14 @@ import {
   ATTENDANCE_STATUSES,
   type AppSettings,
   type AttendanceRecord,
+  type LanguageCode,
   localDateKey,
   parseDateKey,
   plannedShiftForDate,
   type RotationPlan,
   type ShiftConfig,
 } from './lib/domain';
+import { copyFor, statusLabel } from './lib/i18n';
 
 type DiaryProps = {
   initialNow: Date;
@@ -28,9 +30,13 @@ type DiaryProps = {
   rotationPlan: RotationPlan;
   onEditDate: (dateKey: string) => void;
   onOpenPlanner: () => void;
+  language: LanguageCode;
 };
 
-const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAY_LABELS = {
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  mr: ['सोम', 'मंगळ', 'बुध', 'गुरु', 'शुक्र', 'शनि', 'रवि'],
+};
 
 function monthCells(month: Date) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1, 12);
@@ -53,7 +59,10 @@ export function Diary({
   rotationPlan,
   onEditDate,
   onOpenPlanner,
+  language,
 }: DiaryProps) {
+  const copy = copyFor(language);
+  const locale = language === 'mr' ? 'mr-IN' : 'en-IN';
   const [month, setMonth] = useState(
     () => new Date(initialNow.getFullYear(), initialNow.getMonth(), 1, 12),
   );
@@ -77,9 +86,6 @@ export function Diary({
   const selectedShift = selectedPlannedShift
     ? shiftMap.get(selectedPlannedShift)
     : undefined;
-  const selectedStatus = ATTENDANCE_STATUSES.find(
-    (status) => status.value === selectedRecord?.status,
-  );
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
   const monthRecords = records.filter((record) => record.date.startsWith(monthKey));
   const presentCount = monthRecords.filter((record) => record.status === 'PRESENT').length;
@@ -102,31 +108,31 @@ export function Diary({
     <div className="diary-view">
       <section className="diary-heading">
         <div>
-          <span className="eyebrow">Pocket diary</span>
-          <h1>Attendance calendar</h1>
-          <p>Actual attendance and planned shifts, together.</p>
+          <span className="eyebrow">{copy.pocketDiary}</span>
+          <h1>{copy.attendanceCalendar}</h1>
+          <p>{copy.actualAndPlanned}</p>
         </div>
         <button className="planner-button" type="button" onClick={onOpenPlanner}>
-          <Repeat2 size={18} /> Rotation
+          <Repeat2 size={18} /> {copy.rotation}
         </button>
       </section>
 
       <section className="month-card" aria-label="Monthly attendance calendar">
         <header className="month-toolbar">
-          <button type="button" onClick={() => changeMonth(-1)} aria-label="Previous month">
+          <button type="button" onClick={() => changeMonth(-1)} aria-label={copy.previousMonth}>
             <ChevronLeft size={20} />
           </button>
           <div>
-            <strong>{month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>
-            <button type="button" onClick={jumpToToday}>Today</button>
+            <strong>{month.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</strong>
+            <button type="button" onClick={jumpToToday}>{copy.today}</button>
           </div>
-          <button type="button" onClick={() => changeMonth(1)} aria-label="Next month">
+          <button type="button" onClick={() => changeMonth(1)} aria-label={copy.nextMonth}>
             <ChevronRight size={20} />
           </button>
         </header>
 
         <div className="weekday-row" aria-hidden="true">
-          {WEEKDAY_LABELS.map((day) => <span key={day}>{day}</span>)}
+          {WEEKDAY_LABELS[language].map((day) => <span key={day}>{day}</span>)}
         </div>
 
         <div className="calendar-grid">
@@ -137,7 +143,7 @@ export function Diary({
             const plannedShift = plannedShiftForDate(dateKey, rotationPlan, settings.weeklyOff);
             const isWeeklyOff = date.getDay() === settings.weeklyOff;
             const isOutsideMonth = date.getMonth() !== month.getMonth();
-            const label = date.toLocaleDateString('en-IN', {
+            const label = date.toLocaleDateString(locale, {
               weekday: 'long',
               day: 'numeric',
               month: 'long',
@@ -148,7 +154,7 @@ export function Diary({
                 className={`calendar-day ${isOutsideMonth ? 'outside' : ''} ${dateKey === todayKey ? 'today' : ''} ${dateKey === selectedDate ? 'selected' : ''} ${record ? `has-${record.status.toLowerCase()}` : ''}`}
                 key={dateKey}
                 type="button"
-                aria-label={`${label}${status ? `, ${status.label}` : ''}${plannedShift ? `, planned shift ${plannedShift}` : ''}`}
+                aria-label={`${label}${status ? `, ${statusLabel(language, status.value)}` : ''}${plannedShift ? `, ${copy.plannedShift} ${plannedShift}` : ''}`}
                 aria-pressed={dateKey === selectedDate}
                 onClick={() => setSelectedDate(dateKey)}
               >
@@ -163,41 +169,41 @@ export function Diary({
         </div>
 
         <footer className="calendar-legend">
-          <span><i className="actual-dot" /> Actual</span>
-          <span><i className="plan-dot" /> Planned shift</span>
-          <span>{monthRecords.length} days marked</span>
+          <span><i className="actual-dot" /> {copy.actual}</span>
+          <span><i className="plan-dot" /> {copy.plannedShift}</span>
+          <span>{monthRecords.length} {copy.daysMarked}</span>
         </footer>
       </section>
 
       <section className="selected-day-card">
         <div className="selected-date-block">
-          <span>{parseDateKey(selectedDate).toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+          <span>{parseDateKey(selectedDate).toLocaleDateString(locale, { weekday: 'short' })}</span>
           <strong>{parseDateKey(selectedDate).getDate()}</strong>
-          <small>{parseDateKey(selectedDate).toLocaleDateString('en-IN', { month: 'short' })}</small>
+          <small>{parseDateKey(selectedDate).toLocaleDateString(locale, { month: 'short' })}</small>
         </div>
         <div className="selected-day-content">
-          <span className="eyebrow">Selected day</span>
-          <h2>{selectedStatus?.label ?? 'Not marked'}</h2>
+          <span className="eyebrow">{copy.selectedDay}</span>
+          <h2>{selectedRecord ? statusLabel(language, selectedRecord.status) : copy.notMarked}</h2>
           <p>
             {selectedRecord ? (
               <>Shift {selectedRecord.shiftCode} · {selectedRecord.shiftStartTime}–{selectedRecord.shiftEndTime}</>
             ) : selectedShift ? (
-              <><Clock3 size={14} /> Planned: Shift {selectedShift.code} · {selectedShift.startTime}–{selectedShift.endTime}</>
+              <><Clock3 size={14} /> {copy.planned}: {copy.shift} {selectedShift.code} · {selectedShift.startTime}–{selectedShift.endTime}</>
             ) : (
-              'Weekly off · no shift planned'
+              copy.noShiftPlanned
             )}
           </p>
         </div>
         <button type="button" onClick={() => onEditDate(selectedDate)}>
           {selectedRecord ? <PencilLine size={17} /> : <CalendarCheck2 size={17} />}
-          {selectedRecord ? 'Edit' : 'Mark'}
+          {selectedRecord ? copy.edit : copy.mark}
         </button>
       </section>
 
       <section className="month-insight-row" aria-label="Month summary">
-        <article><strong>{monthRecords.length}</strong><span>Days marked</span></article>
-        <article><strong>{presentCount}</strong><span>Present</span></article>
-        <article><strong>{leaveCount}</strong><span>Off / leave</span></article>
+        <article><strong>{monthRecords.length}</strong><span>{copy.daysMarked}</span></article>
+        <article><strong>{presentCount}</strong><span>{copy.present}</span></article>
+        <article><strong>{leaveCount}</strong><span>{copy.offLeave}</span></article>
       </section>
     </div>
   );

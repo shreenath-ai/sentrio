@@ -158,3 +158,48 @@ export function plannedShiftForDate(
   const index = ((position % plan.sequence.length) + plan.sequence.length) % plan.sequence.length;
   return plan.sequence[index];
 }
+
+export function attendanceCycleFor(
+  date: Date,
+  cycleStartDay: number,
+  monthOffset = 0,
+) {
+  const baseStart =
+    date.getDate() >= cycleStartDay
+      ? new Date(date.getFullYear(), date.getMonth(), cycleStartDay, 12)
+      : new Date(date.getFullYear(), date.getMonth() - 1, cycleStartDay, 12);
+  const start = new Date(
+    baseStart.getFullYear(),
+    baseStart.getMonth() + monthOffset,
+    cycleStartDay,
+    12,
+  );
+  const end = new Date(
+    start.getFullYear(),
+    start.getMonth() + 1,
+    cycleStartDay - 1,
+    12,
+  );
+  const totalDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const short = (value: Date) =>
+    value.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return {
+    start,
+    end,
+    startKey: localDateKey(start),
+    endKey: localDateKey(end),
+    totalDays,
+    label: `${short(start)} – ${short(end)}`,
+  };
+}
+
+export function workedMinutes(checkIn: string, checkOut: string) {
+  if (!checkIn || !checkOut) return 0;
+  const [startHour, startMinute] = checkIn.split(':').map(Number);
+  const [endHour, endMinute] = checkOut.split(':').map(Number);
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return 0;
+  const start = startHour * 60 + startMinute;
+  let end = endHour * 60 + endMinute;
+  if (end <= start) end += 24 * 60;
+  return Math.max(end - start, 0);
+}
