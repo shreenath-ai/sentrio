@@ -452,25 +452,52 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   padding: 5px;
   flex-direction: column;
 }
-.calendar-day:hover { background: var(--slate-100); }
+.calendar-day:hover { background: var(--slate-100); transform: translateY(-1px); }
 .calendar-day.outside { color: var(--slate-300); opacity: .65; }
 .calendar-day.today .day-number { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; color: var(--white); background: var(--navy-950); }
-.calendar-day.selected { border-color: var(--teal-500); background: var(--teal-50); box-shadow: inset 0 0 0 1px var(--teal-500); }
+.calendar-day.selected { z-index: 1; border-color: var(--navy-950); box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--navy-950); }
 .day-number { display: grid; width: 24px; height: 24px; place-items: center; font-size: 11px; font-weight: 800; }
 .day-markers { display: flex; min-height: 15px; align-items: center; justify-content: center; gap: 3px; }
 .day-markers b, .day-markers i { display: grid; width: 15px; height: 15px; place-items: center; border-radius: 5px; font-size: 7px; font-style: normal; font-weight: 900; }
-.day-markers b { color: var(--white); background: var(--teal-700); }
+.calendar-day.has-present { border-color: #a7f3d0; background: #ecfdf5; }
+.calendar-day.has-half_day { border-color: #fde68a; background: #fffbeb; }
+.calendar-day.has-absent { border-color: #fecaca; background: #fff1f2; }
+.calendar-day.has-weekly_off { border-color: #cbd5e1; background: #f8fafc; }
+.calendar-day.has-holiday { border-color: #bfdbfe; background: #eff6ff; }
+.calendar-day.has-leave { border-color: #ddd6fe; background: #f5f3ff; }
+.day-markers b { color: var(--white); background: #059669; }
+.has-half_day .day-markers b { color: #713f12; background: #fbbf24; }
 .has-absent .day-markers b { background: #dc2626; }
-.has-half_day .day-markers b, .has-holiday .day-markers b { color: #713f12; background: #fbbf24; }
-.has-weekly_off .day-markers b, .has-leave .day-markers b { background: var(--slate-500); }
-.day-markers i { color: var(--slate-500); background: var(--slate-100); }
+.has-weekly_off .day-markers b { background: #64748b; }
+.has-holiday .day-markers b { background: #2563eb; }
+.has-leave .day-markers b { background: #7c3aed; }
+.day-markers i { color: var(--white); background: #64748b; }
+.plan-a .day-markers i { color: #075985; background: #bae6fd; }
+.plan-b .day-markers i { color: #92400e; background: #fde68a; }
+.plan-c .day-markers i { color: #f8fafc; background: #334155; }
+.plan-g .day-markers i { color: #065f46; background: #a7f3d0; }
+.plan-off .day-markers i { color: #475569; background: #e2e8f0; }
 .calendar-legend { display: flex; min-height: 42px; align-items: center; gap: 12px; border-top: 1px solid var(--slate-100); color: var(--slate-500); padding: 9px 13px; font-size: 9px; }
 .calendar-legend span { display: flex; align-items: center; gap: 5px; }
 .calendar-legend span:last-child { margin-left: auto; font-weight: 750; }
 .calendar-legend i { width: 8px; height: 8px; border-radius: 3px; }
 .actual-dot { background: var(--teal-700); }
 .plan-dot { background: var(--slate-200); }
+.status-color-legend { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--slate-100); background: #fbfcfd; padding: 10px 12px 12px; }
+.status-color-legend span { display: flex; min-height: 26px; align-items: center; gap: 5px; border: 1px solid var(--slate-200); border-radius: 999px; color: var(--slate-600); background: var(--white); padding: 3px 8px 3px 4px; font-size: 8px; font-weight: 750; }
+.status-color-legend i { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; color: var(--white); background: #059669; font-size: 7px; font-style: normal; font-weight: 900; }
+.status-color-legend .legend-half_day i { color: #713f12; background: #fbbf24; }
+.status-color-legend .legend-absent i { background: #dc2626; }
+.status-color-legend .legend-weekly_off i { background: #64748b; }
+.status-color-legend .legend-holiday i { background: #2563eb; }
+.status-color-legend .legend-leave i { background: #7c3aed; }
 .selected-day-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; margin-top: 14px; border: 1px solid var(--slate-200); border-radius: 19px; background: var(--white); padding: 13px; }
+.selected-day-card.selected-present { border-left: 5px solid #059669; }
+.selected-day-card.selected-half_day { border-left: 5px solid #f59e0b; }
+.selected-day-card.selected-absent { border-left: 5px solid #dc2626; }
+.selected-day-card.selected-weekly_off { border-left: 5px solid #64748b; }
+.selected-day-card.selected-holiday { border-left: 5px solid #2563eb; }
+.selected-day-card.selected-leave { border-left: 5px solid #7c3aed; }
 .selected-date-block { display: grid; width: 54px; height: 68px; place-items: center; align-content: center; border-radius: 15px; color: var(--white); background: var(--navy-950); line-height: 1; }
 .selected-date-block span, .selected-date-block small { color: rgb(255 255 255 / 58%); font-size: 8px; font-weight: 750; text-transform: uppercase; }
 .selected-date-block strong { margin: 3px 0; font-size: 22px; }

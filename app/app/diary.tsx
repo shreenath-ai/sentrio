@@ -151,7 +151,7 @@ export function Diary({
 
             return (
               <button
-                className={`calendar-day ${isOutsideMonth ? 'outside' : ''} ${dateKey === todayKey ? 'today' : ''} ${dateKey === selectedDate ? 'selected' : ''} ${record ? `has-${record.status.toLowerCase()}` : ''}`}
+                className={`calendar-day ${isOutsideMonth ? 'outside' : ''} ${dateKey === todayKey ? 'today' : ''} ${dateKey === selectedDate ? 'selected' : ''} ${record ? `has-${record.status.toLowerCase()}` : ''} ${isWeeklyOff ? 'plan-off' : plannedShift ? `plan-${plannedShift.toLowerCase()}` : ''}`}
                 key={dateKey}
                 type="button"
                 aria-label={`${label}${status ? `, ${statusLabel(language, status.value)}` : ''}${plannedShift ? `, ${copy.plannedShift} ${plannedShift}` : ''}`}
@@ -160,8 +160,8 @@ export function Diary({
               >
                 <span className="day-number">{date.getDate()}</span>
                 <span className="day-markers">
-                  {record ? <b>{status?.short}</b> : null}
-                  <i>{isWeeklyOff ? 'W' : plannedShift}</i>
+                  {record ? <b title={status ? statusLabel(language, status.value) : undefined}>{status?.short}</b> : null}
+                  {(isWeeklyOff || plannedShift) ? <i title={isWeeklyOff ? copy.weeklyOff : `${copy.plannedShift} ${plannedShift}`}>{isWeeklyOff ? 'W' : plannedShift}</i> : null}
                 </span>
               </button>
             );
@@ -173,9 +173,16 @@ export function Diary({
           <span><i className="plan-dot" /> {copy.plannedShift}</span>
           <span>{monthRecords.length} {copy.daysMarked}</span>
         </footer>
+        <div className="status-color-legend" aria-label={copy.status}>
+          {ATTENDANCE_STATUSES.map((status) => (
+            <span className={`legend-${status.value.toLowerCase()}`} key={status.value}>
+              <i>{status.short}</i>{statusLabel(language, status.value)}
+            </span>
+          ))}
+        </div>
       </section>
 
-      <section className="selected-day-card">
+      <section className={`selected-day-card ${selectedRecord ? `selected-${selectedRecord.status.toLowerCase()}` : ''}`}>
         <div className="selected-date-block">
           <span>{parseDateKey(selectedDate).toLocaleDateString(locale, { weekday: 'short' })}</span>
           <strong>{parseDateKey(selectedDate).getDate()}</strong>
