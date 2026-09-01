@@ -1,4 +1,4 @@
-import type { AttendanceStatus, LanguageCode } from './domain';
+import type { AttendanceStatus, LanguageCode, ShiftCode } from './domain';
 
 export const COPY = {
   en: {
@@ -50,6 +50,15 @@ export const COPY = {
     shiftEnded: 'Shift ended',
     clockMode: 'Clock mode',
     clockHelper: 'Use the clock buttons or mark attendance manually.',
+    activeShift: 'Active shift',
+    shiftInProgress: 'Your shift is in progress',
+    elapsedTime: 'Elapsed time',
+    startedAt: 'Started at',
+    scheduledEnd: 'Scheduled end',
+    openTimer: 'Open timer',
+    closeTimer: 'Close timer',
+    finishShift: 'Finish shift',
+    runningSafely: 'Your attendance is being recorded safely on this device.',
     present: 'Present',
     halfDay: 'Half Day',
     holiday: 'Holiday',
@@ -150,6 +159,15 @@ export const COPY = {
     shiftEnded: 'पाळी संपली',
     clockMode: 'घड्याळ नोंद',
     clockHelper: 'वेळेची बटणे वापरा किंवा उपस्थिती स्वतः नोंदवा.',
+    activeShift: 'सुरू असलेली पाळी',
+    shiftInProgress: 'तुमची पाळी सुरू आहे',
+    elapsedTime: 'झालेला वेळ',
+    startedAt: 'सुरू करण्याची वेळ',
+    scheduledEnd: 'नियोजित शेवट',
+    openTimer: 'टायमर उघडा',
+    closeTimer: 'टायमर बंद करा',
+    finishShift: 'पाळी पूर्ण करा',
+    runningSafely: 'तुमची उपस्थिती या फोनवर सुरक्षितपणे नोंदवली जात आहे.',
     present: 'उपस्थित',
     halfDay: 'अर्धा दिवस',
     holiday: 'सुट्टी',
@@ -220,4 +238,16 @@ export function statusLabel(language: LanguageCode, status: AttendanceStatus) {
     LEAVE: copy.leave,
   };
   return labels[status];
+}
+
+export function shiftName(language: LanguageCode, code: ShiftCode, fallback: string) {
+  if (language === 'en') return fallback;
+  const names: Partial<Record<ShiftCode, string>> = {
+    A: 'सकाळ',
+    B: 'संध्याकाळ',
+    C: 'रात्र',
+    G: 'सामान्य',
+    OFF: 'सुट्टी',
+  };
+  return names[code] ?? fallback;
 }

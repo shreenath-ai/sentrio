@@ -39,12 +39,16 @@ import { Insights } from './insights';
 import { Onboarding } from './onboarding';
 import { Reports } from './reports';
 import { RotationPlanner } from './rotation-planner';
+import { Brand } from './brand';
+import { ActiveShift } from './active-shift';
 
 export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [now] = useState(() => new Date(initialNow));
   const [isOnline, setIsOnline] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isRotationOpen, setIsRotationOpen] = useState(false);
+  const [isClockOpen, setIsClockOpen] = useState(false);
+  const [clockNow, setClockNow] = useState(() => new Date());
   const [activeView, setActiveView] = useState<'today' | 'diary' | 'insights' | 'reports'>('today');
   const [setupMode, setSetupMode] = useState<'settings' | null>(null);
   const [initializationError, setInitializationError] = useState('');
@@ -91,16 +95,17 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isSheetOpen && !isRotationOpen) return;
+    if (!isSheetOpen && !isRotationOpen && !isClockOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSheetOpen(false);
         setIsRotationOpen(false);
+        setIsClockOpen(false);
       }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isRotationOpen, isSheetOpen]);
+  }, [isClockOpen, isRotationOpen, isSheetOpen]);
 
   const todayKey = localDateKey(now);
   const records = useMemo(
@@ -111,6 +116,12 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     [attendanceRecords],
   );
   const todayRecord = records[todayKey];
+
+  useEffect(() => {
+    if (!isClockOpen) return;
+    const timer = window.setInterval(() => setClockNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isClockOpen]);
   const cycleStartDay = settings?.cycleStartDay ?? 26;
   const cycle = useMemo(
     () => attendanceCycleFor(now, cycleStartDay),
@@ -173,7 +184,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const shiftMap = new Map(shiftConfigs.map((shift) => [shift.code, shift]));
   const copy = copyFor(profile.language);
   const locale = profile.language === 'mr' ? 'mr-IN' : 'en-IN';
-  const todayShiftCode = todayRecord?.shiftCode ?? settings.defaultShift;
+  const todayShiftCode = todayRecord?.shiftCode ?? plannedShiftForDate(todayKey, rotationPlan, settings.weeklyOff) ?? settings.defaultShift;
   const todayShift = shiftMap.get(todayShiftCode) ?? DEFAULT_SHIFTS[0];
 
   function openAttendanceSheet(
@@ -240,6 +251,8 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
       createdAt: todayRecord?.createdAt || timestamp.toISOString(),
       updatedAt: timestamp.toISOString(),
     });
+    setClockNow(timestamp);
+    setIsClockOpen(true);
     setToast(copy.shiftStarted);
     window.setTimeout(() => setToast(''), 2600);
   }
@@ -249,6 +262,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     const timestamp = new Date();
     const currentTime = timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
     await db.attendanceRecords.update(todayRecord.id, { checkOut: currentTime, updatedAt: timestamp.toISOString() });
+    setIsClockOpen(false);
     setToast(copy.shiftEnded);
     window.setTimeout(() => setToast(''), 2600);
   }
@@ -352,7 +366,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
               {!todayRecord?.checkIn ? (
                 <button type="button" onClick={() => void startShift()}><Clock3 size={18} />{copy.startShift}</button>
               ) : !todayRecord.checkOut ? (
-                <button className="end" type="button" onClick={() => void endShift()}><Clock3 size={18} />{copy.endShift}</button>
+                <button type="button" onClick={() => { setClockNow(new Date()); setIsClockOpen(true); }}><TimerReset size={18} />{copy.openTimer}</button>
               ) : (
                 <span className="clock-complete"><Check size={16} />{todayRecord.checkIn} – {todayRecord.checkOut}</span>
               )}
@@ -545,20 +559,24 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
         <RotationPlanner
           plan={rotationPlan}
           shifts={shiftConfigs}
+          language={profile.language}
           onClose={() => setIsRotationOpen(false)}
         />
       ) : null}
 
-      {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
-    </div>
-  );
-}
+      {isClockOpen && todayRecord?.checkIn && !todayRecord.checkOut ? (
+        <ActiveShift
+          record={todayRecord}
+          shift={todayShift}
+          language={profile.language}
+          now={clockNow}
+          onClose={() => setIsClockOpen(false)}
+          onFinish={() => void endShift()}
+          onEdit={() => { setIsClockOpen(false); openAttendanceSheet(); }}
+        />
+      ) : null}
 
-function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`brand ${compact ? 'compact' : ''}`}>
-      <span className="brand-mark" aria-hidden="true">S</span>
-      <div><strong>Sentrio</strong>{!compact && <span>Shift diary</span>}</div>
+      {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
     </div>
   );
 }

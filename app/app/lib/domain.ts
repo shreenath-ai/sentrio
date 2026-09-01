@@ -203,3 +203,10 @@ export function workedMinutes(checkIn: string, checkOut: string) {
   if (end <= start) end += 24 * 60;
   return Math.max(end - start, 0);
 }
+
+export function elapsedSeconds(dateKey: string, checkIn: string, now: Date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !/^\d{2}:\d{2}$/.test(checkIn)) return 0;
+  const start = new Date(`${dateKey}T${checkIn}:00`);
+  if (Number.isNaN(start.getTime())) return 0;
+  return Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000));
+}

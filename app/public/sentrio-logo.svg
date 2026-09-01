@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Sentrio Pulse Gear</title>
+  <desc id="description">A teal industrial gear joined with an attendance pulse.</desc>
+  <rect width="512" height="512" rx="112" fill="#020617"/>
+  <g fill="none" stroke="#14b8a6" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="30" d="M358 141a152 152 0 1 1-69-31"/>
+    <path stroke-width="26" d="M171 132l-18-31 39-22 18 31m-72 68-36-7 9-44 36 8m-22 91-34 14 17 42 34-14m3 92-23 29 35 28 23-29m70 46 1 37 45-1-1-37m76-36 25 27 33-31-25-27m39-80 36 10 12-43-36-10"/>
+    <circle cx="247" cy="257" r="82" stroke-width="24" opacity=".72"/>
+    <path stroke="#fdfbf7" stroke-width="28" d="M110 270h88l24-54 39 112 32-128 31 70h82"/>
+  </g>
+</svg>
