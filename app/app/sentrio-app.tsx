@@ -304,7 +304,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     .toUpperCase();
 
   return (
-    <div className="sentrio-shell">
+    <div className={`sentrio-shell ${activeView === 'today' ? 'dashboard-shell' : ''}`}>
       <aside className="desktop-rail" aria-label="Sentrio overview">
         <Brand />
         <div className="rail-copy">
@@ -405,16 +405,12 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
 
             <button className="primary-action" type="button" onClick={() => openAttendanceSheet()}>
               <span className="action-icon"><Check size={20} /></span>
-              {todayRecord ? copy.updateAttendance : copy.markAttendance}
+              {profile.language === 'mr' ? (todayRecord ? 'उपस्थिती व जादा वेळ बदला' : 'उपस्थिती व जादा वेळ नोंदवा') : (todayRecord ? 'Edit attendance & overtime' : 'Add attendance & overtime')}
             </button>
           </section>
 
-          <div className="dashboard-quick-actions">
-            <button type="button" onClick={() => openAttendanceSheet()}><Save size={18} />{copy.updateAttendance}</button>
-            <button type="button" onClick={() => openAttendanceSheet()}><Clock3 size={18} />{profile.language === 'mr' ? 'जादा वेळ नोंदवा' : 'Add overtime'}</button>
-          </div>
           {todayRecord && overtimeMinutesFor(todayRecord) > 0 ? <p className="dashboard-caption">{profile.language === 'mr' ? 'आजचा जादा वेळ' : "Today's overtime"}: {durationLabel(overtimeMinutesFor(todayRecord), profile.language)}</p> : null}
-          <DashboardSummary now={now} records={attendanceRecords} language={profile.language} cycleStartDay={cycleStartDay} onEdit={(date) => openAttendanceSheet(settings.defaultStatus, date)} onDiary={() => setActiveView('diary')} />
+          <DashboardSummary now={now} records={attendanceRecords} language={profile.language} onEdit={(date) => openAttendanceSheet(settings.defaultStatus, date)} onDiary={() => setActiveView('diary')} />
             </>
           ) : activeView === 'diary' ? (
             <Diary

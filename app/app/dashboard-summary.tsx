@@ -1,34 +1,39 @@
 'use client';
 
 import { Clock3, ArrowUpRight, CalendarCheck2 } from 'lucide-react';
-import { ATTENDANCE_STATUSES, attendanceCycleFor, dashboardPeriods, durationLabel, localDateKey, overtimeMinutesFor, parseDateKey, periodSummary, type AttendanceRecord, type LanguageCode } from './lib/domain';
+import { useState } from 'react';
+import { ATTENDANCE_STATUSES, dashboardPeriods, durationLabel, localDateKey, overtimeMinutesFor, parseDateKey, periodSummary, type AttendanceRecord, type LanguageCode } from './lib/domain';
 import { copyFor, statusLabel } from './lib/i18n';
 
-export function DashboardSummary({ now, records, language, cycleStartDay, onEdit, onDiary }: {
-  now: Date; records: AttendanceRecord[]; language: LanguageCode; cycleStartDay: number;
+export function DashboardSummary({ now, records, language, onEdit, onDiary }: {
+  now: Date; records: AttendanceRecord[]; language: LanguageCode;
   onEdit: (date: string) => void; onDiary: () => void;
 }) {
   const mr = language === 'mr';
+  const [period, setPeriod] = useState<'week' | 'month'>('month');
   const copy = copyFor(language);
   const periods = dashboardPeriods(now);
   const today = localDateKey(now);
-  const cycle = attendanceCycleFor(now, cycleStartDay);
-  const week = periodSummary(records, periods.weekStart, today);
-  const month = periodSummary(records, periods.monthStart, today);
-  const summary = periodSummary(records, cycle.startKey, today);
-  const recent = records.filter(record => record.date <= today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
+  const start = period === 'week' ? periods.weekStart : periods.monthStart;
+  const summary = periodSummary(records, start, today);
+  const recent = records.filter(record => record.date >= start && record.date <= today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
   const dateRange = (start: string, end: string) => [start, end].map(date => parseDateKey(date).toLocaleDateString(mr ? 'mr-IN' : 'en-IN', { day: 'numeric', month: 'short' })).join(' – ');
   return <section className="dashboard-summary" aria-label={mr ? 'उपस्थिती आणि जादा कामाचा आढावा' : 'Attendance and overtime overview'}>
+    <header className="dashboard-period">
+      <h2>{mr ? 'तुमचा आढावा' : 'Your summary'}</h2>
+      <div className="dashboard-period-switch" role="group" aria-label={mr ? 'कालावधी निवडा' : 'Summary period'}>
+        <button type="button" aria-pressed={period === 'week'} onClick={() => setPeriod('week')}>{mr ? 'हा आठवडा' : 'This week'}</button>
+        <button type="button" aria-pressed={period === 'month'} onClick={() => setPeriod('month')}>{mr ? 'हा महिना' : 'This month'}</button>
+      </div>
+      <p>{dateRange(start, today)} · {mr ? 'आजपर्यंत' : 'Through today'}</p>
+    </header>
     <div className="dashboard-metrics">
-      <article><CalendarCheck2 size={20} /><span>{mr ? 'या महिन्यात कामाचे दिवस' : 'Days worked this month'}</span><strong>{month.workedDays}<small>{mr ? 'दिवस' : 'days'}</small></strong><small>{dateRange(periods.monthStart, today)}</small></article>
-      <article><Clock3 size={20} /><span>{mr ? 'नोंदवलेले पाळीचे तास' : 'Recorded shift time'}</span><strong>{durationLabel(month.regularMinutes, language)}</strong><small>{mr ? 'या महिन्यात · जादा वेळ वेगळा' : 'This month · overtime separate'}</small></article>
-      <article className="ot-metric"><Clock3 size={20} /><span>{mr ? 'या आठवड्याचा जादा वेळ' : 'Overtime this week'}</span><strong>{durationLabel(week.overtimeMinutes, language)}</strong><small>{dateRange(periods.weekStart, periods.weekEnd)} · {mr ? 'सोम–रवि' : 'Mon–Sun'}</small></article>
-      <article className="ot-metric"><Clock3 size={20} /><span>{mr ? 'या महिन्याचा जादा वेळ' : 'Overtime this month'}</span><strong>{durationLabel(month.overtimeMinutes, language)}</strong><small>{dateRange(periods.monthStart, periods.monthEnd)}</small></article>
+      <article><CalendarCheck2 size={20} /><span>{mr ? 'उपस्थित दिवस' : 'Days attended'}</span><strong>{summary.workedDays}<small>{mr ? 'दिवस' : 'days'}</small></strong><small>{mr ? 'अर्ध्या दिवसांच्या नोंदींसह' : 'Includes half-day entries'}</small></article>
+      <article className="ot-metric"><Clock3 size={20} /><span>{mr ? 'जादा कामाचा वेळ' : 'Overtime'}</span><strong>{durationLabel(summary.overtimeMinutes, language)}</strong><small>{mr ? 'तुम्ही नोंदवलेला जादा वेळ' : 'Extra time you have logged'}</small></article>
     </div>
     <article className="dashboard-panel">
-      <header><div><h2>{mr ? 'या कालावधीतील उपस्थिती' : 'Attendance this cycle'}</h2><p>{dateRange(cycle.startKey, cycle.endKey)}</p></div><button type="button" onClick={onDiary}>{copy.diary}<ArrowUpRight size={18} /></button></header>
+      <header><div><h2>{mr ? 'उपस्थितीचा तपशील' : 'Attendance breakdown'}</h2><p>{mr ? 'निवडलेल्या कालावधीतील नोंदी' : 'Entries in the selected period'}</p></div><button type="button" onClick={onDiary}>{copy.diary}<ArrowUpRight size={18} /></button></header>
       <div className="dashboard-status-counts">{ATTENDANCE_STATUSES.map(status => <div key={status.value}><span>{statusLabel(language, status.value)}</span><strong>{summary.counts[status.value]}</strong></div>)}</div>
-      <p className="dashboard-caption">{mr ? 'या कालावधीतील जादा वेळ' : 'Overtime this cycle'}: <strong>{durationLabel(summary.overtimeMinutes, language)}</strong></p>
     </article>
     <article className="dashboard-panel">
       <header><h2>{mr ? 'अलीकडील नोंदी' : 'Recent entries'}</h2><button type="button" onClick={onDiary}>{mr ? 'सर्व पहा' : 'View all'}<ArrowUpRight size={18} /></button></header>

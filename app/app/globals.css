@@ -447,6 +447,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-weight: 800;
 }
 .dashboard-summary { display: grid; gap: 20px; margin-top: 20px; }
+.dashboard-period h2 { margin: 0 0 14px; font-size: 1.25rem; }
+.dashboard-period p { margin: 12px 0 0; color: var(--slate-600); font-size: .875rem; }
+.dashboard-period-switch { display: flex; padding: 4px; gap: 4px; border-radius: 14px; background: #e9efee; }
+.dashboard-period-switch button { flex: 1; min-height: 48px; border: 0; border-radius: 10px; background: transparent; color: #334155; font: inherit; font-weight: 600; cursor: pointer; }
+.dashboard-period-switch button[aria-pressed="true"] { background: #0f766e; color: white; }
+.dashboard-period-switch button:focus-visible { outline: 3px solid #0f766e; outline-offset: 3px; }
+.dashboard-shell .desktop-summary { visibility: hidden; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .dashboard-metrics article { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--slate-200); border-radius: 18px; padding: 18px; background: white; min-width: 0; }
 .dashboard-metrics article > svg { color: #0f766e; }
