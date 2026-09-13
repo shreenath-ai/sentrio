@@ -30,7 +30,6 @@ import {
   formatShiftTime,
   localDateKey,
   parseDateKey,
-  plannedShiftForDate,
   type ShiftCode,
 } from './lib/domain';
 import { copyFor, statusLabel } from './lib/i18n';
@@ -38,7 +37,6 @@ import { Diary } from './diary';
 import { Insights } from './insights';
 import { Onboarding } from './onboarding';
 import { Reports } from './reports';
-import { RotationPlanner } from './rotation-planner';
 import { Brand } from './brand';
 import { ActiveShift } from './active-shift';
 
@@ -46,7 +44,6 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [now] = useState(() => new Date(initialNow));
   const [isOnline, setIsOnline] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isRotationOpen, setIsRotationOpen] = useState(false);
   const [isClockOpen, setIsClockOpen] = useState(false);
   const [clockNow, setClockNow] = useState(() => new Date());
   const [activeView, setActiveView] = useState<'today' | 'diary' | 'insights' | 'reports'>('today');
@@ -71,7 +68,6 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     () => db.attendanceRecords.toArray(),
     [],
   );
-  const rotationPlan = useLiveQuery(() => db.rotationPlans.get('rotation'), []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -95,17 +91,16 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isSheetOpen && !isRotationOpen && !isClockOpen) return;
+    if (!isSheetOpen && !isClockOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSheetOpen(false);
-        setIsRotationOpen(false);
         setIsClockOpen(false);
       }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isClockOpen, isRotationOpen, isSheetOpen]);
+  }, [isClockOpen, isSheetOpen]);
 
   const todayKey = localDateKey(now);
   const records = useMemo(
@@ -159,7 +154,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     );
   }
 
-  if (!profile || !settings || !shiftConfigs || !rotationPlan || attendanceRecords === undefined) {
+  if (!profile || !settings || !shiftConfigs || attendanceRecords === undefined) {
     return (
       <main className="database-state" aria-busy="true">
         <Brand compact />
@@ -184,7 +179,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const shiftMap = new Map(shiftConfigs.map((shift) => [shift.code, shift]));
   const copy = copyFor(profile.language);
   const locale = profile.language === 'mr' ? 'mr-IN' : 'en-IN';
-  const todayShiftCode = todayRecord?.shiftCode ?? plannedShiftForDate(todayKey, rotationPlan, settings.weeklyOff) ?? settings.defaultShift;
+  const todayShiftCode = todayRecord?.shiftCode ?? settings.defaultShift;
   const todayShift = shiftMap.get(todayShiftCode) ?? DEFAULT_SHIFTS[0];
 
   function openAttendanceSheet(
@@ -192,17 +187,11 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     dateKey: string = todayKey,
   ) {
     const existing = records[dateKey];
-    const plannedShift = plannedShiftForDate(
-      dateKey,
-      rotationPlan,
-      settings.weeklyOff,
-    );
-    const suggestedShift = plannedShift ?? settings.defaultShift;
-    const selectedShift = shiftMap.get(existing?.shiftCode ?? suggestedShift);
+    const suggestedShift = settings.defaultShift;
     setEntryDate(dateKey);
     setActiveStatus(existing?.status ?? status);
     setActiveShift(existing?.shiftCode ?? suggestedShift);
-    setCheckIn(existing?.checkIn ?? selectedShift?.startTime ?? '');
+    setCheckIn(existing?.checkIn ?? '');
     setCheckOut(existing?.checkOut ?? '');
     setNote(existing?.note ?? '');
     setIsSheetOpen(true);
@@ -433,11 +422,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             <Diary
               initialNow={now}
               records={attendanceRecords}
-              settings={settings}
-              shifts={shiftConfigs}
-              rotationPlan={rotationPlan}
               onEditDate={(dateKey) => openAttendanceSheet(settings.defaultStatus, dateKey)}
-              onOpenPlanner={() => setIsRotationOpen(true)}
               language={profile.language}
             />
           ) : activeView === 'insights' ? (
@@ -554,15 +539,6 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
           </section>
         </div>
       )}
-
-      {isRotationOpen ? (
-        <RotationPlanner
-          plan={rotationPlan}
-          shifts={shiftConfigs}
-          language={profile.language}
-          onClose={() => setIsRotationOpen(false)}
-        />
-      ) : null}
 
       {isClockOpen && todayRecord?.checkIn && !todayRecord.checkOut ? (
         <ActiveShift
