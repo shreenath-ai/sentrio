@@ -247,7 +247,6 @@ export function shiftName(language: LanguageCode, code: ShiftCode, fallback: str
     B: 'संध्याकाळ',
     C: 'रात्र',
     G: 'सामान्य',
-    OFF: 'सुट्टी',
   };
   return names[code] ?? fallback;
 }

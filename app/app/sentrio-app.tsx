@@ -13,7 +13,6 @@ import {
   Save,
   Settings,
   ShieldCheck,
-  Sparkles,
   TimerReset,
   UserRound,
   X,
@@ -39,9 +38,11 @@ import { Onboarding } from './onboarding';
 import { Reports } from './reports';
 import { Brand } from './brand';
 import { ActiveShift } from './active-shift';
+import { DashboardSummary } from './dashboard-summary';
+import { durationLabel, overtimeMinutesFor, periodSummary } from './lib/domain';
 
 export function SentrioApp({ initialNow }: { initialNow: string }) {
-  const [now] = useState(() => new Date(initialNow));
+  const [now, setNow] = useState(() => new Date(initialNow));
   const [isOnline, setIsOnline] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isClockOpen, setIsClockOpen] = useState(false);
@@ -57,6 +58,18 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
   const [note, setNote] = useState('');
   const [entryDate, setEntryDate] = useState(() => localDateKey(new Date(initialNow)));
   const [toast, setToast] = useState('');
+  const [otHours, setOtHours] = useState('0');
+  const [otMinutes, setOtMinutes] = useState('0');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    const refresh = () => setNow(new Date());
+    refresh();
+    const interval = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); };
+  }, []);
 
   const profile = useLiveQuery(() => db.profiles.get('default'), []);
   const settings = useLiveQuery(() => db.settings.get('app'), []);
@@ -111,6 +124,10 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     [attendanceRecords],
   );
   const todayRecord = records[todayKey];
+  const runningRecord = (attendanceRecords ?? []).filter(record => {
+    const start = new Date(`${record.date}T${record.checkIn}:00`).getTime();
+    return (record.status === 'PRESENT' || record.status === 'HALF_DAY') && record.checkIn && !record.checkOut && start <= now.getTime() && now.getTime() - start < 86400000;
+  }).sort((a, b) => b.date.localeCompare(a.date))[0];
 
   useEffect(() => {
     if (!isClockOpen) return;
@@ -178,6 +195,8 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
 
   const shiftMap = new Map(shiftConfigs.map((shift) => [shift.code, shift]));
   const copy = copyFor(profile.language);
+  const language = profile.language;
+  const defaultShift = settings.defaultShift;
   const locale = profile.language === 'mr' ? 'mr-IN' : 'en-IN';
   const todayShiftCode = todayRecord?.shiftCode ?? settings.defaultShift;
   const todayShift = shiftMap.get(todayShiftCode) ?? DEFAULT_SHIFTS[0];
@@ -187,18 +206,28 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
     dateKey: string = todayKey,
   ) {
     const existing = records[dateKey];
-    const suggestedShift = settings.defaultShift;
+    const suggestedShift = defaultShift;
     setEntryDate(dateKey);
     setActiveStatus(existing?.status ?? status);
     setActiveShift(existing?.shiftCode ?? suggestedShift);
     setCheckIn(existing?.checkIn ?? '');
     setCheckOut(existing?.checkOut ?? '');
     setNote(existing?.note ?? '');
+    const ot = existing ? overtimeMinutesFor(existing) : 0;
+    setOtHours(String(Math.floor(ot / 60)));
+    setOtMinutes(String(ot % 60));
+    setSaveError('');
     setIsSheetOpen(true);
   }
 
   async function saveAttendance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
+    const ot = Number(otHours) * 60 + Number(otMinutes);
+    if (!Number.isInteger(ot) || ot < 0 || ot > 1440 || Number(otMinutes) < 0 || Number(otMinutes) > 59) {
+      setSaveError(language === 'mr' ? 'जादा वेळ ० ते २४ तासांच्या दरम्यान नोंदवा.' : 'Enter overtime between 0 and 24 hours, with minutes from 0 to 59.');
+      return;
+    }
     const selectedShift = shiftMap.get(activeShift) ?? DEFAULT_SHIFTS[0];
     const existingRecord = records[entryDate];
     const timestamp = new Date().toISOString();
@@ -212,14 +241,20 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
       status: activeStatus,
       checkIn,
       checkOut,
+      overtimeMinutes: activeStatus === 'PRESENT' || activeStatus === 'HALF_DAY' ? ot : 0,
       note: note.trim(),
       createdAt: existingRecord?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
-    await db.attendanceRecords.put(nextRecord);
-    setIsSheetOpen(false);
-    setToast(copy.attendanceSaved);
-    window.setTimeout(() => setToast(''), 2600);
+    setSaving(true);
+    try {
+      await db.attendanceRecords.put(nextRecord);
+      setIsSheetOpen(false);
+      setToast(copy.attendanceSaved);
+      window.setTimeout(() => setToast(''), 2600);
+    } catch {
+      setSaveError(language === 'mr' ? 'नोंद जतन झाली नाही. पुन्हा प्रयत्न करा.' : 'Could not save. Please try again.');
+    } finally { setSaving(false); }
   }
 
   async function startShift() {
@@ -236,26 +271,31 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
       status: 'PRESENT',
       checkIn: todayRecord?.checkIn || currentTime,
       checkOut: todayRecord?.checkOut || '',
+      overtimeMinutes: todayRecord?.overtimeMinutes ?? 0,
       note: todayRecord?.note || '',
       createdAt: todayRecord?.createdAt || timestamp.toISOString(),
       updatedAt: timestamp.toISOString(),
     });
     setClockNow(timestamp);
+    setNow(timestamp);
     setIsClockOpen(true);
     setToast(copy.shiftStarted);
     window.setTimeout(() => setToast(''), 2600);
   }
 
   async function endShift() {
-    if (!todayRecord?.checkIn) return;
+    if (!runningRecord?.checkIn) return;
     const timestamp = new Date();
     const currentTime = timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    await db.attendanceRecords.update(todayRecord.id, { checkOut: currentTime, updatedAt: timestamp.toISOString() });
+    await db.attendanceRecords.update(runningRecord.id, { checkOut: currentTime, updatedAt: timestamp.toISOString() });
     setIsClockOpen(false);
+    openAttendanceSheet('PRESENT', runningRecord.date);
+    setCheckOut(currentTime);
     setToast(copy.shiftEnded);
     window.setTimeout(() => setToast(''), 2600);
   }
 
+  const cycleSummary = periodSummary(attendanceRecords, cycle.startKey, todayKey);
   const initials = profile.name
     .split(/\s+/)
     .slice(0, 2)
@@ -310,7 +350,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             <>
           <section className="date-heading">
             <div>
-              <span className="eyebrow">{copy.today}</span>
+              <span className="eyebrow">{profile.language === 'mr' ? 'डॅशबोर्ड' : 'Dashboard'}</span>
               <h1>{englishDate}</h1>
               <p lang="mr">{marathiDate}</p>
             </div>
@@ -327,7 +367,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
                 <h2 id="shift-title">{todayShift.name} Shift</h2>
                 <p><Clock3 size={16} /> {formatShiftTime(todayShift)}</p>
               </div>
-              <span className="shift-state">{copy.scheduled}</span>
+              <span className="shift-state">{todayRecord ? statusLabel(profile.language, todayRecord.status) : copy.notMarked}</span>
             </div>
 
             {todayRecord ? (
@@ -352,7 +392,9 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
 
             <div className="clock-panel">
               <div><strong>{copy.clockMode}</strong><span>{copy.clockHelper}</span></div>
-              {!todayRecord?.checkIn ? (
+              {runningRecord ? (
+                <button type="button" onClick={() => { setClockNow(new Date()); setIsClockOpen(true); }}><TimerReset size={18} />{copy.openTimer}</button>
+              ) : !todayRecord?.checkIn ? (
                 <button type="button" onClick={() => void startShift()}><Clock3 size={18} />{copy.startShift}</button>
               ) : !todayRecord.checkOut ? (
                 <button type="button" onClick={() => { setClockNow(new Date()); setIsClockOpen(true); }}><TimerReset size={18} />{copy.openTimer}</button>
@@ -367,56 +409,12 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
             </button>
           </section>
 
-          <section className="status-section" aria-labelledby="quick-status-title">
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">{copy.oneTapEntry}</span>
-                <h2 id="quick-status-title">{copy.quickStatus}</h2>
-              </div>
-              <span>{copy.sixOptions}</span>
-            </div>
-            <div className="status-grid">
-              {ATTENDANCE_STATUSES.map((status) => (
-                <button
-                  className={`status-button status-${status.value.toLowerCase()} ${
-                    todayRecord?.status === status.value ? 'is-saved' : ''
-                  }`}
-                  key={status.value}
-                  type="button"
-                  onClick={() => openAttendanceSheet(status.value)}
-                >
-                  <span>{status.short}</span>
-                  {statusLabel(profile.language, status.value)}
-                  {todayRecord?.status === status.value && <Check size={15} />}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="cycle-card" aria-labelledby="cycle-title">
-            <div className="cycle-icon"><TimerReset size={21} /></div>
-            <div className="cycle-content">
-              <div className="cycle-row">
-                <div>
-                  <span className="eyebrow">{copy.attendanceCycle}</span>
-                  <h2 id="cycle-title">{cycle.label}</h2>
-                </div>
-                <strong>{markedInCycle}/{cycle.totalDays}</strong>
-              </div>
-              <div className="progress-track" aria-label={`${markedInCycle} days marked in this cycle`}>
-                <span style={{ width: `${Math.min((markedInCycle / cycle.totalDays) * 100, 100)}%` }} />
-              </div>
-              <p>{markedInCycle === 0 ? copy.startByMarking : `${markedInCycle} ${copy.safelyRecorded}.`}</p>
-            </div>
-          </section>
-
-          <section className="diary-note">
-            <Sparkles size={19} aria-hidden="true" />
-            <div>
-              <span>{copy.todaysThought}</span>
-              <blockquote>“{copy.thought}”</blockquote>
-            </div>
-          </section>
+          <div className="dashboard-quick-actions">
+            <button type="button" onClick={() => openAttendanceSheet()}><Save size={18} />{copy.updateAttendance}</button>
+            <button type="button" onClick={() => openAttendanceSheet()}><Clock3 size={18} />{profile.language === 'mr' ? 'जादा वेळ नोंदवा' : 'Add overtime'}</button>
+          </div>
+          {todayRecord && overtimeMinutesFor(todayRecord) > 0 ? <p className="dashboard-caption">{profile.language === 'mr' ? 'आजचा जादा वेळ' : "Today's overtime"}: {durationLabel(overtimeMinutesFor(todayRecord), profile.language)}</p> : null}
+          <DashboardSummary now={now} records={attendanceRecords} language={profile.language} cycleStartDay={cycleStartDay} onEdit={(date) => openAttendanceSheet(settings.defaultStatus, date)} onDiary={() => setActiveView('diary')} />
             </>
           ) : activeView === 'diary' ? (
             <Diary
@@ -434,7 +432,7 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
 
         <nav className="bottom-nav" aria-label="Primary navigation">
           <button className={`nav-item ${activeView === 'today' ? 'active' : ''}`} type="button" aria-current={activeView === 'today' ? 'page' : undefined} onClick={() => setActiveView('today')}>
-            <Home size={21} /><span>{copy.today}</span>
+            <Home size={21} /><span>{profile.language === 'mr' ? 'डॅशबोर्ड' : 'Dashboard'}</span>
           </button>
           <button className={`nav-item ${activeView === 'diary' ? 'active' : ''}`} type="button" aria-current={activeView === 'diary' ? 'page' : undefined} onClick={() => setActiveView('diary')}>
             <NotebookTabs size={21} /><span>{copy.diary}</span>
@@ -456,9 +454,9 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
           <span>{copy.daysMarked}</span>
         </div>
         <div className="summary-list">
-          <div><span className="summary-dot present" />{copy.present} <strong>{todayRecord?.status === 'PRESENT' ? 1 : 0}</strong></div>
-          <div><span className="summary-dot off" />{copy.weeklyOff} <strong>{todayRecord?.status === 'WEEKLY_OFF' ? 1 : 0}</strong></div>
-          <div><span className="summary-dot absent" />{copy.absent} <strong>{todayRecord?.status === 'ABSENT' ? 1 : 0}</strong></div>
+          <div><span className="summary-dot present" />{copy.present} <strong>{cycleSummary.counts.PRESENT}</strong></div>
+          <div><span className="summary-dot off" />{copy.weeklyOff} <strong>{cycleSummary.counts.WEEKLY_OFF}</strong></div>
+          <div><span className="summary-dot absent" />{copy.absent} <strong>{cycleSummary.counts.ABSENT}</strong></div>
         </div>
         <div className="privacy-card">
           <UserRound size={19} />
@@ -527,28 +525,37 @@ export function SentrioApp({ initialNow }: { initialNow: string }) {
                 <label>{copy.checkOut} <span>{copy.optional}</span><input type="time" value={checkOut} onChange={(event) => setCheckOut(event.target.value)} /></label>
               </div>
 
+              {(activeStatus === 'PRESENT' || activeStatus === 'HALF_DAY') ? <fieldset className="overtime-fields">
+                <legend>{profile.language === 'mr' ? 'पाळीनंतरचा जादा वेळ (OT)' : 'Overtime after your shift (OT)'}</legend>
+                <p>{profile.language === 'mr' ? 'जादा कामाचा वेळ स्वतंत्रपणे नोंदवा. जाण्याची वेळ ही नियमित पाळी संपण्याची वेळ आहे.' : 'Enter extra time separately. Check-out above is the end of your regular shift.'}</p>
+                <div className="time-grid">
+                  <label>{profile.language === 'mr' ? 'तास' : 'Hours'}<input type="number" inputMode="numeric" min="0" max="24" step="1" value={otHours} onChange={event => setOtHours(event.target.value)} /></label>
+                  <label>{profile.language === 'mr' ? 'मिनिटे' : 'Minutes'}<input type="number" inputMode="numeric" min="0" max="59" step="1" value={otMinutes} onChange={event => setOtMinutes(event.target.value)} /></label>
+                </div>
+              </fieldset> : null}
+              {saveError ? <p role="alert" className="form-error">{saveError}</p> : null}
               <label className="note-field">{copy.personalNote} <span>{copy.optional}</span>
                 <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={copy.notePlaceholder} rows={2} />
               </label>
 
               <div className="sheet-actions">
                 <button className="secondary-action" type="button" onClick={() => setIsSheetOpen(false)}>{copy.cancel}</button>
-                <button className="save-action" type="submit"><Save size={18} />{copy.saveAttendance}</button>
+                <button className="save-action" type="submit" disabled={saving}><Save size={18} />{saving ? (profile.language === 'mr' ? 'जतन करत आहे…' : 'Saving…') : copy.saveAttendance}</button>
               </div>
             </form>
           </section>
         </div>
       )}
 
-      {isClockOpen && todayRecord?.checkIn && !todayRecord.checkOut ? (
+      {isClockOpen && runningRecord ? (
         <ActiveShift
-          record={todayRecord}
-          shift={todayShift}
+          record={runningRecord}
+          shift={shiftMap.get(runningRecord.shiftCode) ?? todayShift}
           language={profile.language}
           now={clockNow}
           onClose={() => setIsClockOpen(false)}
           onFinish={() => void endShift()}
-          onEdit={() => { setIsClockOpen(false); openAttendanceSheet(); }}
+          onEdit={() => { setIsClockOpen(false); openAttendanceSheet('PRESENT', runningRecord.date); }}
         />
       ) : null}
 

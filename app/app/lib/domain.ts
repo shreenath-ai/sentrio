@@ -50,6 +50,7 @@ export type AttendanceRecord = {
   status: AttendanceStatus;
   checkIn: string;
   checkOut: string;
+  overtimeMinutes?: number;
   note: string;
   createdAt: string;
   updatedAt: string;
@@ -200,7 +201,7 @@ export function workedMinutes(checkIn: string, checkOut: string) {
   if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return 0;
   const start = startHour * 60 + startMinute;
   let end = endHour * 60 + endMinute;
-  if (end <= start) end += 24 * 60;
+  if (end < start) end += 24 * 60;
   return Math.max(end - start, 0);
 }
 
@@ -209,4 +210,40 @@ export function elapsedSeconds(dateKey: string, checkIn: string, now: Date) {
   const start = new Date(`${dateKey}T${checkIn}:00`);
   if (Number.isNaN(start.getTime())) return 0;
   return Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000));
+}
+
+export function overtimeMinutesFor(record: AttendanceRecord) {
+  if (record.status !== 'PRESENT' && record.status !== 'HALF_DAY') return 0;
+  const minutes = record.overtimeMinutes ?? 0;
+  return Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440 ? minutes : 0;
+}
+
+export function durationLabel(minutes: number, language: LanguageCode = 'en') {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return language === 'mr' ? `${hours} ता ${remainder} मि` : `${hours}h ${remainder}m`;
+}
+
+export function periodSummary(records: AttendanceRecord[], start: string, end: string) {
+  const selected = records.filter(record => record.date >= start && record.date <= end);
+  const worked = selected.filter(record => record.status === 'PRESENT' || record.status === 'HALF_DAY');
+  return {
+    marked: selected.length,
+    workedDays: worked.length,
+    regularMinutes: worked.reduce((sum, record) => sum + workedMinutes(record.checkIn, record.checkOut), 0),
+    overtimeMinutes: selected.reduce((sum, record) => sum + overtimeMinutesFor(record), 0),
+    counts: Object.fromEntries(ATTENDANCE_STATUSES.map(status => [status.value, selected.filter(record => record.status === status.value).length])),
+  };
+}
+
+export function dashboardPeriods(now: Date) {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+  monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  return {
+    weekStart: localDateKey(monday), weekEnd: localDateKey(sunday),
+    monthStart: localDateKey(new Date(now.getFullYear(), now.getMonth(), 1, 12)),
+    monthEnd: localDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12)),
+  };
 }

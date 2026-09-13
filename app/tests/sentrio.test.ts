@@ -4,6 +4,9 @@ import {
   attendanceCycleFor,
   elapsedSeconds,
   workedMinutes,
+  dashboardPeriods,
+  periodSummary,
+  overtimeMinutesFor,
   type AttendanceRecord,
 } from '../app/lib/domain';
 
@@ -65,6 +68,19 @@ describe('attendance cycles and shift time', () => {
 });
 
 describe('backup and restore', () => {
+  it('round-trips overtime without changing legacy records', async () => {
+    const withOT = { ...nightRecord, overtimeMinutes: 95 };
+    await databaseModule.db.attendanceRecords.put(withOT);
+    const backup = await backupModule.parseBackup(JSON.stringify(await backupModule.createBackup()));
+    await backupModule.restoreBackup(backup, 'replace');
+    expect((await databaseModule.db.attendanceRecords.get(withOT.id))?.overtimeMinutes).toBe(95);
+    expect(overtimeMinutesFor(nightRecord)).toBe(0);
+  });
+
+  it('rejects invalid overtime in backup data', async () => {
+    await databaseModule.db.attendanceRecords.put({ ...nightRecord, overtimeMinutes: -1 });
+    await expect(backupModule.parseBackup(JSON.stringify(await backupModule.createBackup()))).rejects.toThrow('Invalid backup');
+  });
   it('creates and validates a checksummed backup', async () => {
     await databaseModule.db.attendanceRecords.put(nightRecord);
     const backup = await backupModule.createBackup();
@@ -91,5 +107,29 @@ describe('backup and restore', () => {
 
     await backupModule.restoreBackup(backup, 'replace');
     expect(await databaseModule.db.attendanceRecords.toArray()).toEqual([nightRecord]);
+  });
+});
+
+describe('dashboard overtime totals', () => {
+  it('keeps weekly and monthly periods separate across a month boundary', () => {
+    const periods = dashboardPeriods(new Date('2026-09-02T12:00:00'));
+    expect(periods.weekStart).toBe('2026-08-31');
+    expect(periods.weekEnd).toBe('2026-09-06');
+    const records = [
+      { ...nightRecord, date: '2026-08-31', overtimeMinutes: 90 },
+      { ...nightRecord, date: '2026-09-01', overtimeMinutes: 45 },
+      { ...nightRecord, date: '2026-09-02', status: 'ABSENT' as const, overtimeMinutes: 120 },
+    ];
+    expect(periodSummary(records, periods.weekStart, '2026-09-02').overtimeMinutes).toBe(135);
+    const month = periodSummary(records, periods.monthStart, '2026-09-02');
+    expect(month.overtimeMinutes).toBe(45);
+    expect(month.workedDays).toBe(1);
+    expect(month.regularMinutes).toBe(450);
+  });
+  it('treats identical punches as zero time and keeps OT separate', () => {
+    expect(workedMinutes('07:00', '07:00')).toBe(0);
+    const result = periodSummary([{ ...nightRecord, overtimeMinutes: 120 }], '2026-08-01', '2026-08-31');
+    expect(result.regularMinutes).toBe(450);
+    expect(result.overtimeMinutes).toBe(120);
   });
 });

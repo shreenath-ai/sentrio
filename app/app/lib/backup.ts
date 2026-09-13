@@ -69,7 +69,9 @@ function isBackupData(value: unknown): value is BackupData {
         record &&
         typeof record.id === 'string' &&
         /^\d{4}-\d{2}-\d{2}$/.test(record.date) &&
-        typeof record.status === 'string',
+        typeof record.status === 'string' &&
+        (record.overtimeMinutes === undefined ||
+          (Number.isInteger(record.overtimeMinutes) && record.overtimeMinutes >= 0 && record.overtimeMinutes <= 1440)),
     )
   );
 }

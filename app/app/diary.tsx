@@ -1,8 +1,8 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, CircleMinus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ATTENDANCE_STATUSES, type AttendanceRecord, type LanguageCode, localDateKey } from './lib/domain';
+import { ATTENDANCE_STATUSES, type AttendanceRecord, type LanguageCode, localDateKey, overtimeMinutesFor, durationLabel } from './lib/domain';
 import { copyFor, statusLabel } from './lib/i18n';
 
 type DiaryProps = {
@@ -51,7 +51,6 @@ export function Diary({ initialNow, records, onEditDate, language }: DiaryProps)
             const date = new Date(month.getFullYear(), month.getMonth(), day, 12);
             const dateKey = localDateKey(date);
             const record = recordMap.get(dateKey);
-            const status = ATTENDANCE_STATUSES.find(item => item.value === record?.status);
             const isWork = record?.status === 'PRESENT' || record?.status === 'HALF_DAY';
             const label = date.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             return <button key={dateKey} type="button"
@@ -60,7 +59,10 @@ export function Diary({ initialNow, records, onEditDate, language }: DiaryProps)
               aria-label={`${label}, ${record ? statusLabel(language, record.status) + (isWork ? `, ${copy.shift} ${record.shiftCode}` : '') : copy.notMarked}`}
               onClick={() => onEditDate(dateKey)}>
               <span className="day-number">{day.toLocaleString(locale)}</span>
-              <span className="calendar-entry">{record ? <><span>{status?.short}</span>{isWork ? <span>· {record.shiftCode}</span> : null}</> : null}</span>
+              <span className="calendar-entry" title={record ? statusLabel(language, record.status) : undefined}>
+                {record ? isWork ? <><span className="calendar-work-icon" aria-hidden="true">{record.status === 'PRESENT' ? <Check size={14} /> : <CircleMinus size={14} />}</span><span>{copy.shift} {record.shiftCode}</span></> : <span className="calendar-status-word">{statusLabel(language, record.status)}</span> : null}
+              </span>
+              {record && overtimeMinutesFor(record) > 0 ? <span className="calendar-ot" title={durationLabel(overtimeMinutesFor(record), language)}>+ OT</span> : null}
             </button>;
           })}
         </div>

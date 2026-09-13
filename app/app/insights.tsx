@@ -8,6 +8,8 @@ import {
   type AttendanceRecord,
   type LanguageCode,
   workedMinutes,
+  durationLabel,
+  overtimeMinutesFor,
 } from './lib/domain';
 import { copyFor, statusLabel } from './lib/i18n';
 
@@ -37,7 +39,7 @@ export function Insights({
     count: selected.filter((record) => record.status === status.value).length,
   }));
   const hours = selected.reduce(
-    (total, record) => total + workedMinutes(record.checkIn, record.checkOut),
+    (total, record) => total + (record.status === 'PRESENT' || record.status === 'HALF_DAY' ? workedMinutes(record.checkIn, record.checkOut) : 0),
     0,
   ) / 60;
   const shiftCounts = ['A', 'B', 'C', 'G'].map((code) => ({
@@ -61,6 +63,7 @@ export function Insights({
       </div>
       <p className="period-label">{cycle.label}</p>
       <div className="metric-grid">
+        <article><Clock3 /><span>{language === 'mr' ? 'जादा वेळ (OT)' : 'Overtime (OT)'}</span><strong>{durationLabel(selected.reduce((sum, record) => sum + overtimeMinutesFor(record), 0), language)}</strong></article>
         <article><BarChart3 /><span>{copy.totalMarked}</span><strong>{selected.length}</strong></article>
         <article><Clock3 /><span>{copy.workedTime}</span><strong>{hours.toFixed(1)} <small>{copy.hours}</small></strong></article>
       </div>

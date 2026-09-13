@@ -3,7 +3,7 @@
 import { Download, FileUp, Printer, ShieldCheck, Smartphone } from 'lucide-react';
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { createBackup, parseBackup, restoreBackup, type BackupEnvelope } from './lib/backup';
-import { attendanceCycleFor, type AttendanceRecord, type LanguageCode } from './lib/domain';
+import { attendanceCycleFor, durationLabel, overtimeMinutesFor, type AttendanceRecord, type LanguageCode } from './lib/domain';
 import { copyFor, statusLabel } from './lib/i18n';
 
 type InstallPrompt = Event & {
@@ -89,10 +89,10 @@ export function Reports({ initialNow, records, cycleStartDay, language }: {
       <header className="screen-title"><span className="eyebrow">{copy.reports}</span><h1>{copy.reportsTitle}</h1><p>{copy.reportsHelper}</p></header>
       <article className="report-card report-print-area">
         <div className="card-heading report-heading"><div><h2>{copy.periodReport}</h2><p>{cycle.label}</p></div><button type="button" onClick={() => window.print()}><Printer />{copy.printReport}</button></div>
-        <div className="report-totals"><strong>{selected.length}</strong><span>{copy.totalMarked}</span></div>
+        <div className="report-totals"><strong>{selected.length}</strong><span>{copy.totalMarked}</span><span>OT: {durationLabel(selected.reduce((sum, record) => sum + overtimeMinutesFor(record), 0), language)}</span></div>
         {selected.length ? (
-          <div className="report-table-wrap"><table><thead><tr><th>{copy.date}</th><th>{copy.status}</th><th>{copy.shift}</th><th>{copy.checkIn}</th><th>{copy.checkOut}</th></tr></thead><tbody>
-            {selected.map((record) => <tr key={record.id}><td>{record.date}</td><td>{statusLabel(language, record.status)}</td><td>{record.shiftCode}</td><td>{record.checkIn || '—'}</td><td>{record.checkOut || '—'}</td></tr>)}
+          <div className="report-table-wrap"><table><thead><tr><th>{copy.date}</th><th>{copy.status}</th><th>{copy.shift}</th><th>{copy.checkIn}</th><th>{copy.checkOut}</th><th>OT</th></tr></thead><tbody>
+            {selected.map((record) => <tr key={record.id}><td>{record.date}</td><td>{statusLabel(language, record.status)}</td><td>{record.shiftCode}</td><td>{record.checkIn || '—'}</td><td>{record.checkOut || '—'}</td><td>{durationLabel(overtimeMinutesFor(record), language)}</td></tr>)}
           </tbody></table></div>
         ) : <p className="empty-copy">{copy.noEntries}</p>}
       </article>
