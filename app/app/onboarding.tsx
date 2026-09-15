@@ -155,7 +155,7 @@ export function Onboarding({
               <ArrowLeft size={19} /> {text.back}
             </button>
           ) : (
-            <span>{text.step} {step + 1} {text.of} 2</span>
+            <span>{text.stored}</span>
           )}
         </header>
 
@@ -165,12 +165,12 @@ export function Onboarding({
         </div>
 
         {step === 0 ? (
-          <form className="setup-form" onSubmit={continueToShifts}>
+          <form className="setup-form" onSubmit={mode === 'onboarding' ? saveSetup : continueToShifts}>
             <div className="setup-title">
               <div className="setup-icon"><UserRound size={23} /></div>
               <span>{text.welcome}</span>
-              <h2>{text.makeYours}</h2>
-              <p>{text.details}</p>
+              <h2>{mode === 'onboarding' ? (language === 'mr' ? 'तुमच्या पाळ्या. तुमची उपस्थिती. तुमची दैनंदिनी.' : 'Your shifts. Your attendance. Your diary.') : text.makeYours}</h2>
+              <p>{mode === 'onboarding' ? (language === 'mr' ? 'खाते आवश्यक नाही. माहिती या फोनवर राहते.' : 'No account required. Your diary stays on this device.') : text.details}</p>
             </div>
 
             <fieldset className="language-fieldset">
@@ -219,9 +219,8 @@ export function Onboarding({
             </label>
 
             {error ? <p className="form-error" role="alert">{error}</p> : null}
-
-            <button className="setup-primary" type="submit">
-              {text.continue} <ArrowRight size={18} />
+            <button className="setup-primary" type="submit" disabled={isSaving}>
+              {isSaving ? text.saving : mode === 'onboarding' ? (language === 'mr' ? 'सुरू करा' : 'Get started') : text.continue} <ArrowRight size={18} />
             </button>
           </form>
         ) : (

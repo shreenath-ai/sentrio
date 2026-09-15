@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Noto_Sans_Devanagari } from 'next/font/google';
+import { Plus_Jakarta_Sans, Merriweather, Noto_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
+import './ledger.css';
 import { PwaRegister } from './pwa-register';
 
-const geist = Geist({
+const geist = Plus_Jakarta_Sans({
   variable: '--font-geist',
   subsets: ['latin'],
 });
+const heading = Merriweather({ variable: '--font-heading', subsets: ['latin'], weight: ['400', '700'] });
 
 const devanagari = Noto_Sans_Devanagari({
   variable: '--font-devanagari',
@@ -17,15 +19,15 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://sentrio-shift-diary.cloudy-tick-1574.chatgpt.site'),
   title: 'Sentrio — Self Attendance & Shift Diary',
   description:
-    'A private, offline-first self-attendance and rotating-shift diary for industrial workers.',
+    'A private, offline-first self-attendance and shift diary for industrial workers.',
   applicationName: 'Sentrio',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
-      { url: '/sentrio-logo.svg', type: 'image/svg+xml' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/sentrio-brand.svg', type: 'image/svg+xml' },
+      { url: '/sentrio-icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
-    apple: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/sentrio-icon-192.png', sizes: '192x192', type: 'image/png' }],
   },
   appleWebApp: {
     capable: true,
@@ -58,7 +60,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#020617',
+  themeColor: '#46543d',
 };
 
 export default function RootLayout({
@@ -68,7 +70,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geist.variable} ${devanagari.variable}`}>
+      <body className={`${geist.variable} ${heading.variable} ${devanagari.variable}`}>
         <PwaRegister />
         {children}
       </body>

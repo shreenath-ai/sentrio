@@ -1,11 +1,11 @@
-const CACHE = 'sentrio-shell-v2';
+const CACHE = 'sentrio-shell-v3';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
-  '/sentrio-logo.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-maskable-512.png',
+  '/sentrio-brand.svg',
+  '/sentrio-icon-192.png',
+  '/sentrio-icon-512.png',
+  '/sentrio-icon-maskable-512.png',
 ];
 
 self.addEventListener('install', (event) => {
